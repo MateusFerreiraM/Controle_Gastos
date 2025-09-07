@@ -33,13 +33,16 @@ class _PaginaInicialState extends State<PaginaInicial> {
       required String categoria,
       required DateTime data,
       required String observacao}) {
+    
     final transacaoMap = {
       'valor': valor,
       'categoria': categoria,
       'tipo': tipo.name,
       'data': DateFormat('yyyy-MM-dd').format(data),
-      'observacao': observacao
+      'observacao': observacao,
+      'timestamp': FieldValue.serverTimestamp(),
     };
+
     if (id == null) {
       _transacoesRef.add(transacaoMap);
     } else {
@@ -129,7 +132,7 @@ class _PaginaInicialState extends State<PaginaInicial> {
         ],
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: _transacoesRef.orderBy('data', descending: true).snapshots(),
+        stream: _transacoesRef.orderBy('timestamp', descending: true).snapshots(),
         builder: (ctx, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
