@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../main.dart';
+import '../main.dart';
 
 class TelaGerenciarCategorias extends StatefulWidget {
   final String codigoGrupo;
@@ -97,6 +97,9 @@ class _TelaGerenciarCategoriasState extends State<TelaGerenciarCategorias> {
         appBar: AppBar(
           title: const Text('Gerenciar Categorias'),
           bottom: const TabBar(
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
+            indicatorColor: Colors.white,
             tabs: [
               Tab(text: 'Entradas', icon: Icon(Icons.arrow_upward)),
               Tab(text: 'Saídas', icon: Icon(Icons.arrow_downward)),

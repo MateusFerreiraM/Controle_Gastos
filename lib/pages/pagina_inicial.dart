@@ -21,6 +21,94 @@ class PaginaInicial extends StatefulWidget {
 class _PaginaInicialState extends State<PaginaInicial> {
   final formatadorMoeda = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
 
+  // NOVO MÉTODO E MAIS ROBUSTO PARA CHAMAR A VERIFICAÇÃO
+  @override
+  void initState() {
+    super.initState();
+    // Este método garante que a função será chamada APÓS a tela ser construída
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _verificarSeMostraTutorial();
+    });
+  }
+
+  // FUNÇÃO DE VERIFICAÇÃO COM LOGS DE DEBUG
+  void _verificarSeMostraTutorial() async {
+    print('--- Verificando se o tutorial deve ser mostrado ---');
+    final prefs = await SharedPreferences.getInstance();
+    final tutorialVisto = prefs.getBool('tutorial_visto') ?? false;
+    print('DEBUG: O valor de "tutorial_visto" na memória do celular é: $tutorialVisto');
+
+    if (!tutorialVisto && mounted) {
+      print('--- CONDIÇÃO VERDADEIRA: O pop-up deveria aparecer agora. ---');
+      _mostrarDialogoDeBoasVindas(context);
+    } else {
+      print('--- CONDIÇÃO FALSA: O pop-up NÃO será mostrado. ---');
+    }
+  }
+
+  // A função que efetivamente mostra o diálogo
+  void _mostrarDialogoDeBoasVindas(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('tutorial_visto', true);
+    print('--- Flag "tutorial_visto" foi salva como TRUE na memória. ---');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('👋 Bem-vindo!'),
+        content: const SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Aqui estão algumas dicas para começar:'),
+              SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.swipe_left_outlined, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                      child: Text(
+                          'Deslize um item da lista para a esquerda para excluí-lo.')),
+                ],
+              ),
+              SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.touch_app_outlined, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(child: Text('Toque em um item da lista para editá-lo.')),
+                ],
+              ),
+              SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.settings_outlined, size: 20),
+                  SizedBox(width: 8),
+                  Expanded(
+                      child: Text(
+                          'Use o ícone de engrenagem ⚙️ para gerenciar suas categorias.')),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            child: const Text('Entendi!'),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+            },
+          )
+        ],
+      ),
+    );
+  }
+
+  // --- O RESTANTE DA CLASSE CONTINUA IGUAL ---
   CollectionReference get _transacoesRef => FirebaseFirestore.instance
       .collection('grupos')
       .doc(widget.codigoGrupo)
@@ -33,7 +121,6 @@ class _PaginaInicialState extends State<PaginaInicial> {
       required String categoria,
       required DateTime data,
       required String observacao}) {
-    
     final transacaoMap = {
       'valor': valor,
       'categoria': categoria,
@@ -42,7 +129,6 @@ class _PaginaInicialState extends State<PaginaInicial> {
       'observacao': observacao,
       'timestamp': FieldValue.serverTimestamp(),
     };
-
     if (id == null) {
       _transacoesRef.add(transacaoMap);
     } else {
@@ -50,7 +136,8 @@ class _PaginaInicialState extends State<PaginaInicial> {
     }
   }
 
-  void _abrirModalDeTransacao(BuildContext ctx, [DocumentSnapshot? transacaoDoc]) {
+  void _abrirModalDeTransacao(BuildContext ctx,
+      [DocumentSnapshot? transacaoDoc]) {
     showModalBottomSheet(
       context: ctx,
       isScrollControlled: true,
@@ -76,7 +163,7 @@ class _PaginaInicialState extends State<PaginaInicial> {
           Text(
             formatadorMoeda.format(valorAtual),
             style: GoogleFonts.montserrat(
-              fontSize: 30,
+              fontSize: 40,
               fontWeight: FontWeight.bold,
               color: AppColors.textoPrincipal,
             ),
@@ -132,7 +219,10 @@ class _PaginaInicialState extends State<PaginaInicial> {
         ],
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: _transacoesRef.orderBy('timestamp', descending: true).snapshots(),
+        stream: _transacoesRef
+            .orderBy('data', descending: true)
+            .orderBy('timestamp', descending: true)
+            .snapshots(),
         builder: (ctx, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -157,7 +247,9 @@ class _PaginaInicialState extends State<PaginaInicial> {
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                 child: Center(
-                  child: Text('Histórico', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  child: Text('Histórico',
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 ),
               ),
               Expanded(
@@ -168,7 +260,8 @@ class _PaginaInicialState extends State<PaginaInicial> {
                         itemCount: docs.length,
                         itemBuilder: (ctx, index) {
                           final transacaoDoc = docs[index];
-                          final transacaoData = transacaoDoc.data() as Map<String, dynamic>;
+                          final transacaoData =
+                              transacaoDoc.data() as Map<String, dynamic>;
                           final tipo = transacaoData['tipo'] == 'Entrada'
                               ? TipoTransacao.Entrada
                               : TipoTransacao.Saida;
@@ -188,34 +281,42 @@ class _PaginaInicialState extends State<PaginaInicial> {
                               color: AppColors.saida,
                               alignment: Alignment.centerRight,
                               padding: const EdgeInsets.only(right: 20.0),
-                              margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 4),
-                              child: const Icon(Icons.delete, color: Colors.white),
+                              margin: const EdgeInsets.symmetric(
+                                  horizontal: 15, vertical: 4),
+                              child:
+                                  const Icon(Icons.delete, color: Colors.white),
                             ),
                             direction: DismissDirection.endToStart,
                             child: ListTile(
-                              onTap: () => _abrirModalDeTransacao(context, transacaoDoc),
+                              onTap: () =>
+                                  _abrirModalDeTransacao(context, transacaoDoc),
                               leading: CircleAvatar(
-                                backgroundColor: cor.withOpacity(0.15),
+                                backgroundColor: cor,
                                 child: Icon(
-                                  tipo == TipoTransacao.Entrada ? Icons.arrow_upward : Icons.arrow_downward,
-                                  color: cor,
+                                  tipo == TipoTransacao.Entrada
+                                      ? Icons.arrow_upward
+                                      : Icons.arrow_downward,
+                                  color: Colors.white,
                                 ),
                               ),
                               title: Text(transacaoData['categoria'],
-                                  style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold)),
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   if (observacao.isNotEmpty) Text(observacao),
-                                  Text(DateFormat('dd/MM/y', 'pt_BR').format(data)),
+                                  Text(
+                                      DateFormat('dd/MM/y', 'pt_BR').format(data)),
                                 ],
                               ),
                               trailing: Text(
-                                formatadorMoeda.format(transacaoData['valor']),
+                                formatadorMoeda
+                                    .format(transacaoData['valor']),
                                 style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: cor,
-                                    fontSize: 18),
+                                    fontSize: 16),
                               ),
                             ),
                           );

@@ -61,7 +61,7 @@ class _TelaDeLoginState extends State<TelaDeLogin> {
                   size: 80,
                   color: Theme.of(context).colorScheme.primary,
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 24),
                 Text(
                   'Controle de Gastos',
                   textAlign: TextAlign.center,
@@ -76,7 +76,7 @@ class _TelaDeLoginState extends State<TelaDeLogin> {
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
-                const SizedBox(height: 50),
+                const SizedBox(height: 40),
                 const Text(
                   'Insira um código para criar um novo grupo ou conectar-se a um existente:',
                   textAlign: TextAlign.center,
