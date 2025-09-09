@@ -1,6 +1,6 @@
+import 'package:controle_gastos/app_config.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../main.dart';
 
 class TelaGerenciarCategorias extends StatefulWidget {
   final String codigoGrupo;
@@ -89,6 +89,54 @@ class _TelaGerenciarCategoriasState extends State<TelaGerenciarCategorias> {
     _carregarCategorias();
   }
 
+  Future<void> _apagarTodasAsTransacoes() async {
+    final transacoesRef = _grupoRef.collection('transacoes');
+    final querySnapshot = await transacoesRef.get();
+    
+    final batch = FirebaseFirestore.instance.batch();
+
+    for (var doc in querySnapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    
+    await batch.commit();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Todas as transações foram apagadas com sucesso!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  void _mostrarDialogoDeConfirmacao() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('⚠️ Atenção!'),
+        content: const Text(
+          'Você tem certeza que deseja apagar TODAS as transações? Esta ação não pode ser desfeita.',
+        ),
+        actions: [
+          TextButton(
+            child: const Text('Cancelar'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Sim, Apagar Tudo'),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _apagarTodasAsTransacoes();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -108,34 +156,51 @@ class _TelaGerenciarCategoriasState extends State<TelaGerenciarCategorias> {
         ),
         body: _carregando
             ? const Center(child: CircularProgressIndicator())
-            : TabBarView(
+            : Column(
                 children: [
-                  ListView.builder(
-                    itemCount: _categoriasEntrada.length,
-                    itemBuilder: (ctx, index) {
-                      final categoria = _categoriasEntrada[index];
-                      return ListTile(
-                        title: Text(categoria),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline, color: Colors.red),
-                          onPressed: () => _removerCategoria(TipoTransacao.Entrada, categoria),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        ListView.builder(
+                          itemCount: _categoriasEntrada.length,
+                          itemBuilder: (ctx, index) {
+                            final categoria = _categoriasEntrada[index];
+                            return ListTile(
+                              title: Text(categoria),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                onPressed: () => _removerCategoria(TipoTransacao.Entrada, categoria),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
-                  ),
-                  ListView.builder(
-                    itemCount: _categoriasSaida.length,
-                    itemBuilder: (ctx, index) {
-                      final categoria = _categoriasSaida[index];
-                      return ListTile(
-                        title: Text(categoria),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline, color: Colors.red),
-                          onPressed: () => _removerCategoria(TipoTransacao.Saida, categoria),
+                        ListView.builder(
+                          itemCount: _categoriasSaida.length,
+                          itemBuilder: (ctx, index) {
+                            final categoria = _categoriasSaida[index];
+                            return ListTile(
+                              title: Text(categoria),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                onPressed: () => _removerCategoria(TipoTransacao.Saida, categoria),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
+                      ],
+                    ),
                   ),
+
+                  const Divider(),
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: ListTile(
+                      leading: const Icon(Icons.delete_forever, color: Colors.red),
+                      title: const Text('Apagar Todas as Transações', style: TextStyle(color: Colors.red)),
+                      subtitle: const Text('Esta ação é irreversível.'),
+                      onTap: _mostrarDialogoDeConfirmacao,
+                    ),
+                  )
                 ],
               ),
         floatingActionButton: Builder(

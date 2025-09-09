@@ -2,12 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:google_fonts/google_fonts.dart';
-
-import 'firebase_options.dart';
-import 'pages/auth_wrapper.dart';
-import 'app_colors.dart';
-
-enum TipoTransacao { Entrada, Saida }
+import 'package:controle_gastos/firebase_options.dart';
+import 'package:controle_gastos/pages/auth_wrapper.dart';
+import 'package:controle_gastos/app_colors.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

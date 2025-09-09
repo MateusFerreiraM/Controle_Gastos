@@ -4,6 +4,8 @@ import 'pagina_inicial.dart';
 import 'tela_login.dart';
 
 class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
   @override
   State<AuthWrapper> createState() => _AuthWrapperState();
 }
