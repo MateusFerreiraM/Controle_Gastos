@@ -6,7 +6,7 @@ Este é um aplicativo multiplataforma de controle financeiro, desenvolvido em **
 
 O sistema de acesso é baseado em um "código de grupo", permitindo que casais, famílias ou pequenos grupos gerenciem suas finanças de forma colaborativa, privada e segura.
 
-## 🌟 Funcionalidades Principais
+## Funcionalidades Principais
 
 -   **Sincronização em Tempo Real:** Utiliza o Cloud Firestore para que qualquer transação adicionada, editada ou removida em um dispositivo seja refletida instantaneamente nos outros aparelhos do mesmo grupo.
 -   **Login por Grupo:** Sistema de autenticação simples que não exige dados pessoais. Usuários se conectam a um "grupo" através de um código único, mantendo seus dados isolados e privados.
