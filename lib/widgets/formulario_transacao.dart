@@ -113,7 +113,7 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<MetodoPagamento>(
-            value: _metodoSelecionado,
+            initialValue: _metodoSelecionado,
             decoration: const InputDecoration(labelText: 'Método de Pagamento', border: OutlineInputBorder()),
             items: MetodoPagamento.values.where((metodo) {
               if (_tipoSelecionado == TipoTransacao.Entrada) return metodo != MetodoPagamento.Credito;
@@ -145,7 +145,7 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
             const SizedBox(height: 16),
           ],
           DropdownButtonFormField<String>(
-            value: _categoriaSelecionada,
+            initialValue: _categoriaSelecionada,
             hint: const Text('Selecione uma Categoria'),
             decoration: const InputDecoration(border: OutlineInputBorder()),
             items: categoriasAtuais.map((String categoria) => DropdownMenuItem<String>(value: categoria, child: Text(categoria))).toList(),

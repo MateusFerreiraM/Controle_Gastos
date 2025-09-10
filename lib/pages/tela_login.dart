@@ -91,6 +91,7 @@ class _TelaDeLoginState extends State<TelaDeLogin> {
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.error,
+                          fontWeight: FontWeight.bold,
                         ),
                   ),
                 ),

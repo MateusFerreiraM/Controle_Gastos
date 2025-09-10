@@ -7,6 +7,7 @@ import '../app_config.dart';
 import '../app_colors.dart';
 import '../widgets/formulario_transacao.dart';
 import 'tela_categorias.dart';
+import 'tela_graficos.dart';
 
 class PaginaInicial extends StatefulWidget {
   final String codigoGrupo;
@@ -63,7 +64,7 @@ class _PaginaInicialState extends State<PaginaInicial> {
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Icon(Icons.credit_card_outlined, size: 20),
               SizedBox(width: 8),
-              Expanded(child: Text('Para pagar uma fatura, vá na aba "Faturas" e toque na parcela desejada.')),
+              Expanded(child: Text('Compras no crédito vão para a aba "Faturas" com vencimento no mês seguinte. Toque em uma parcela para pagá-la.')),
             ]),
             SizedBox(height: 12),
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -189,9 +190,7 @@ class _PaginaInicialState extends State<PaginaInicial> {
                     cor: Colors.red),
               ],
             ),
-
             const SizedBox(height: 12),
-
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -260,6 +259,28 @@ Widget _miniResumoItem(
 
         return Dismissible(
           key: Key(docId),
+          confirmDismiss: (direction) async {
+            return await showDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  title: const Text("Confirmar Exclusão"),
+                  content: const Text("Você tem certeza que deseja apagar esta transação?"),
+                  actions: <Widget>[
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: const Text("Cancelar"),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.saida),
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: const Text("Apagar"),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
           onDismissed: (direction) {
             _transacoesRef.doc(docId).delete();
           },
@@ -317,7 +338,7 @@ Widget _miniResumoItem(
       itemBuilder: (ctx, pageIndex) {
         final mes = meses[pageIndex];
         final faturasDoMes = faturasPorMes[mes]!;
-        final dataMes = DateTime.parse('${mes}-01');
+        final dataMes = DateTime.parse('$mes-01');
 
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
@@ -404,6 +425,12 @@ Widget _miniResumoItem(
       appBar: AppBar(
         title: const Text('Controle de Gastos'),
         actions: [
+              IconButton(
+              icon: const Icon(Icons.bar_chart),
+              tooltip: 'Ver Gráficos',
+              onPressed: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (ctx) => TelaGraficos(codigoGrupo: widget.codigoGrupo))),
+          ),
           IconButton(
               icon: const Icon(Icons.help_outline),
               tooltip: 'Ajuda',
@@ -452,12 +479,16 @@ Widget _miniResumoItem(
                   
                   if (tipo == TipoTransacao.Entrada) {
                     if (categoria != 'Cofrinho') {
-                      if (metodo == MetodoPagamento.Dinheiro) entradasDinheiro += valor;
-                      else entradasCartao += valor;
+                      if (metodo == MetodoPagamento.Dinheiro) {
+                        entradasDinheiro += valor;
+                      } else {
+                        entradasCartao += valor;
+                      }
                     }
                   } else {
-                    if (metodo == MetodoPagamento.Dinheiro) saidasDinheiro += valor;
-                    else if (metodo == MetodoPagamento.Debito) saidasCartaoDebito += valor;
+                    if (metodo == MetodoPagamento.Dinheiro) {
+                      saidasDinheiro += valor;
+                    } else if (metodo == MetodoPagamento.Debito) saidasCartaoDebito += valor;
                   }
 
                   if (isParcelaFutura) {
