@@ -1,24 +1,22 @@
-# Controle de Gastos Pessoal
+# Controle de Gastos Pessoal & Compartilhado
 
-## Sobre o Projeto
+## Visão Geral do Projeto
 
-Este é um aplicativo multiplataforma de controle financeiro pessoal, desenvolvido em **Flutter**, que permite o gerenciamento de despesas e receitas de forma simples e compartilhada. O projeto nasceu da necessidade de substituir uma planilha de controle, trazendo a funcionalidade para a palma da mão com a vantagem da **sincronização em tempo real** entre múltiplos dispositivos.
+Este é um aplicativo multiplataforma de controle financeiro, desenvolvido em **Flutter**, com foco em simplicidade e uso compartilhado. O projeto transforma a experiência de uma planilha de gastos em uma solução móvel, com a vantagem da **sincronização de dados em tempo real** através do Firebase.
 
-O app utiliza o **Firebase (Cloud Firestore)** como backend, garantindo que os dados estejam sempre atualizados na nuvem. O sistema de acesso é baseado em um "código de grupo", permitindo que casais ou famílias compartilhem o mesmo controle financeiro de forma privada e segura.
-
-Repositório no GitHub: `https://github.com/MateusFerreiraM/Controle_Gastos.git`
+O sistema de acesso é baseado em um "código de grupo", permitindo que casais, famílias ou pequenos grupos gerenciem suas finanças de forma colaborativa, privada e segura.
 
 ## Funcionalidades Principais
 
-- **Sincronização em Tempo Real:** Transações adicionadas, editadas ou removidas em um dispositivo são refletidas instantaneamente nos outros aparelhos do mesmo grupo.
-- **Login por Grupo:** Sistema de autenticação simples e seguro que não exige dados pessoais. Usuários se conectam a um "grupo" através de um código único, mantendo seus dados isolados.
-- **Controle de Faturas de Cartão:** Lançamentos no crédito são separados do saldo principal e agrupados em uma aba de "Faturas", permitindo um controle claro do que já foi pago e do que ainda está por vencer.
-- **Gerenciamento de Parcelas:** Compras parceladas são automaticamente divididas e lançadas nas faturas dos meses correspondentes.
-- **Gerenciamento Completo (CRUD):** Funcionalidades completas para Adicionar, Ler, Atualizar e Deletar transações, tanto no histórico principal quanto nas faturas.
-- **Categorias Personalizáveis:** O usuário pode gerenciar suas próprias listas de categorias de Entrada e Saída, adaptando o app totalmente às suas necessidades.
-- **Saldos Detalhados:** O card principal exibe um resumo claro dos saldos, separando o valor total em "Dinheiro" e "Cartão" (conta bancária).
-- **Interface Intuitiva e Tematizada:** Design limpo com tema, paleta de cores e fontes customizadas para uma experiência de usuário agradável.
-- **Guia Rápido:** Um botão de ajuda (?) na tela principal oferece dicas sobre as principais funcionalidades do app a qualquer momento.
+-   **Sincronização em Tempo Real:** Utiliza o Cloud Firestore para que qualquer transação adicionada, editada ou removida em um dispositivo seja refletida instantaneamente nos outros aparelhos do mesmo grupo.
+-   **Login por Grupo:** Sistema de autenticação simples que não exige dados pessoais. Usuários se conectam a um "grupo" através de um código único, mantendo seus dados isolados e privados.
+-   **Controle de Faturas de Cartão:** Lançamentos no crédito são separados do saldo principal e agrupados em uma aba dedicada de "Faturas", permitindo um controle claro do que está por vencer.
+-   **Gerenciamento de Parcelas:** Compras parceladas são automaticamente divididas e lançadas nas faturas dos meses correspondentes.
+-   **Gerenciamento Completo (CRUD):** Funcionalidades completas para Adicionar, Ler, Atualizar (com um toque) e Deletar (deslizando) transações, tanto no histórico quanto nas faturas.
+-   **Categorias Personalizáveis:** O usuário pode gerenciar suas próprias listas de categorias de Entrada e Saída, incluindo a opção de **apagar todas as transações** para recomeçar o controle.
+-   **Saldos Detalhados:** O card principal exibe um resumo claro dos saldos, separando o valor total em "Dinheiro" e "Cartão" (conta bancária).
+-   **Interface Intuitiva e Tematizada:** Design limpo com tema, paleta de cores e fontes customizadas para uma experiência de usuário agradável.
+-   **Guia Rápido:** Um botão de ajuda (`?`) na tela principal oferece dicas sobre as principais funcionalidades do app a qualquer momento.
 
 ## Como Executar
 
@@ -82,3 +80,8 @@ O arquivo de saída estará localizado em `build/app/outputs/flutter-apk/app-rel
     -   `firebase_core`, `cloud_firestore`
     -   `google_fonts` (para a tipografia customizada)
     -   `intl` (para formatação de datas e moedas)
+
+
+## 📄 Licença
+
+Este projeto está sob a licença MIT.
