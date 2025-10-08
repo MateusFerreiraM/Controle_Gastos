@@ -1,10 +1,9 @@
 import 'package:controle_gastos/app_config.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/database_service.dart';
 
 class TelaGerenciarCategorias extends StatefulWidget {
-  final String codigoGrupo;
-  const TelaGerenciarCategorias({super.key, required this.codigoGrupo});
+  const TelaGerenciarCategorias({super.key});
 
   @override
   State<TelaGerenciarCategorias> createState() =>
@@ -12,210 +11,239 @@ class TelaGerenciarCategorias extends StatefulWidget {
 }
 
 class _TelaGerenciarCategoriasState extends State<TelaGerenciarCategorias> {
-  late DocumentReference _grupoRef;
-  List<String> _categoriasEntrada = [];
-  List<String> _categoriasSaida = [];
+  List<Map<String, dynamic>> _categoriasEntrada = [];
+  List<Map<String, dynamic>> _categoriasSaida = [];
   bool _carregando = true;
 
   @override
   void initState() {
     super.initState();
-    _grupoRef = FirebaseFirestore.instance.collection('grupos').doc(widget.codigoGrupo);
     _carregarCategorias();
   }
 
   Future<void> _carregarCategorias() async {
-    final snapshot = await _grupoRef.get();
-    if (snapshot.exists) {
-      final dados = snapshot.data() as Map<String, dynamic>;
-      if (mounted) {
-        setState(() {
-          _categoriasEntrada = List<String>.from(dados['categoriasEntrada'] ?? []);
-          _categoriasSaida = List<String>.from(dados['categoriasSaida'] ?? []);
-          _carregando = false;
-        });
-      }
-    } else {
-      if (mounted) {
-        setState(() {
-          _carregando = false;
-        });
-      }
+    setState(() => _carregando = true);
+    final categoriasEntrada = await DatabaseService.obterCategorias('Entrada');
+    final categoriasSaida = await DatabaseService.obterCategorias('Saida');
+    
+    if (mounted) {
+      setState(() {
+        _categoriasEntrada = categoriasEntrada;
+        _categoriasSaida = categoriasSaida;
+        _carregando = false;
+      });
     }
   }
 
-  Future<void> _adicionarCategoria(TipoTransacao tipo) async {
+  Future<void> _mostrarDialogoAdicionarCategoria(String tipo) async {
     final controller = TextEditingController();
-    final novaCategoria = await showDialog<String>(
+    return showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Nova Categoria'),
+        title: Text('Adicionar Categoria de $tipo'),
         content: TextField(
           controller: controller,
+          decoration: const InputDecoration(labelText: 'Nome da categoria'),
           autofocus: true,
-          decoration: const InputDecoration(labelText: 'Nome da Categoria'),
         ),
         actions: [
           TextButton(
+            onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancelar'),
-            onPressed: () => Navigator.of(ctx).pop(),
           ),
           ElevatedButton(
-            child: const Text('Adicionar'),
-            onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                Navigator.of(ctx).pop(controller.text.trim());
+            onPressed: () async {
+              final nome = controller.text.trim();
+              if (nome.isNotEmpty) {
+                await DatabaseService.inserirCategoria(nome, tipo);
+                await _carregarCategorias();
+                Navigator.pop(ctx);
               }
             },
+            child: const Text('Adicionar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _removerCategoria(Map<String, dynamic> categoria) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirmar Exclusão'),
+        content: Text('Deseja excluir a categoria "${categoria['nome']}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Excluir'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
           ),
         ],
       ),
     );
 
-    if (novaCategoria != null) {
-      final campo = tipo == TipoTransacao.Entrada ? 'categoriasEntrada' : 'categoriasSaida';
-      await _grupoRef.update({
-        campo: FieldValue.arrayUnion([novaCategoria])
-      });
-      _carregarCategorias();
+    if (confirmar == true) {
+      await DatabaseService.excluirCategoria(categoria['id']);
+      await _carregarCategorias();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Categoria "${categoria['nome']}" removida')),
+        );
+      }
     }
   }
 
-  Future<void> _removerCategoria(TipoTransacao tipo, String categoria) async {
-    final campo = tipo == TipoTransacao.Entrada ? 'categoriasEntrada' : 'categoriasSaida';
-    await _grupoRef.update({
-      campo: FieldValue.arrayRemove([categoria])
-    });
-    _carregarCategorias();
-  }
-
-  Future<void> _apagarTodasAsTransacoes() async {
-    final transacoesRef = _grupoRef.collection('transacoes');
-    final querySnapshot = await transacoesRef.get();
-    
-    final batch = FirebaseFirestore.instance.batch();
-
-    for (var doc in querySnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    
-    await batch.commit();
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Todas as transações foram apagadas com sucesso!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    }
-  }
-
-  void _mostrarDialogoDeConfirmacao() {
-    showDialog(
+  Future<void> _editarCategoria(Map<String, dynamic> categoria) async {
+    final controller = TextEditingController(text: categoria['nome']);
+    return showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('⚠️ Atenção!'),
-        content: const Text(
-          'Você tem certeza que deseja apagar TODAS as transações? Esta ação não pode ser desfeita.',
+        title: const Text('Editar Categoria'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Nome da categoria'),
+          autofocus: true,
         ),
         actions: [
           TextButton(
+            onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancelar'),
-            onPressed: () => Navigator.of(ctx).pop(),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Sim, Apagar Tudo'),
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _apagarTodasAsTransacoes();
+            onPressed: () async {
+              final novoNome = controller.text.trim();
+              if (novoNome.isNotEmpty && novoNome != categoria['nome']) {
+                await DatabaseService.atualizarCategoriaEmTransacoes(
+                  categoria['nome'], novoNome);
+                await DatabaseService.atualizarCategoria(categoria['id'], novoNome);
+                await _carregarCategorias();
+                Navigator.pop(ctx);
+              }
             },
+            child: const Text('Salvar'),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildListaCategorias(List<Map<String, dynamic>> categorias, String tipo) {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: categorias.length,
+      itemBuilder: (ctx, index) {
+        final categoria = categorias[index];
+        return ListTile(
+          title: Text(categoria['nome']),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.edit),
+                onPressed: () => _editarCategoria(categoria),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: () => _removerCategoria(categoria),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Gerenciar Categorias'),
-          bottom: const TabBar(
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
-            indicatorColor: Colors.white,
-            tabs: [
-              Tab(text: 'Entradas', icon: Icon(Icons.arrow_upward)),
-              Tab(text: 'Saídas', icon: Icon(Icons.arrow_downward)),
-            ],
-          ),
-        ),
-        body: _carregando
-            ? const Center(child: CircularProgressIndicator())
-            : Column(
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Gerenciar Categorias'),
+      ),
+      body: _carregando
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        ListView.builder(
-                          itemCount: _categoriasEntrada.length,
-                          itemBuilder: (ctx, index) {
-                            final categoria = _categoriasEntrada[index];
-                            return ListTile(
-                              title: Text(categoria),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                onPressed: () => _removerCategoria(TipoTransacao.Entrada, categoria),
-                              ),
-                            );
-                          },
-                        ),
-                        ListView.builder(
-                          itemCount: _categoriasSaida.length,
-                          itemBuilder: (ctx, index) {
-                            final categoria = _categoriasSaida[index];
-                            return ListTile(
-                              title: Text(categoria),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                onPressed: () => _removerCategoria(TipoTransacao.Saida, categoria),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
+                  // Seção Categorias de Entrada
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Categorias de Entrada',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add),
+                        onPressed: () => _mostrarDialogoAdicionarCategoria('Entrada'),
+                      ),
+                    ],
                   ),
-
-                  const Divider(),
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: ListTile(
-                      leading: const Icon(Icons.delete_forever, color: Colors.red),
-                      title: const Text('Apagar Todas as Transações', style: TextStyle(color: Colors.red)),
-                      subtitle: const Text('Esta ação é irreversível.'),
-                      onTap: _mostrarDialogoDeConfirmacao,
+                  Card(
+                    child: _buildListaCategorias(_categoriasEntrada, 'Entrada'),
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Seção Categorias de Saída
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Categorias de Saída',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add),
+                        onPressed: () => _mostrarDialogoAdicionarCategoria('Saida'),
+                      ),
+                    ],
+                  ),
+                  Card(
+                    child: _buildListaCategorias(_categoriasSaida, 'Saida'),
+                  ),
+                  
+                  if (versaoPessoal) ...[
+                    const SizedBox(height: 24),
+                    Card(
+                      color: Colors.blue.shade50,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Categorias Especiais',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text('• Cofrinho: Para guardar dinheiro'),
+                            const Text('• Investido: Para aplicações e investimentos'),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Essas categorias são contabilizadas separadamente no resumo.',
+                              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  )
+                  ],
                 ],
               ),
-        floatingActionButton: Builder(
-          builder: (BuildContext newContext) {
-            return FloatingActionButton(
-              child: const Icon(Icons.add),
-              onPressed: () {
-                final index = DefaultTabController.of(newContext).index;
-                final tipo = index == 0 ? TipoTransacao.Entrada : TipoTransacao.Saida;
-                _adicionarCategoria(tipo);
-              },
-            );
-          },
-        ),
-      ),
+            ),
     );
   }
 }

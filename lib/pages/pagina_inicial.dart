@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../app_config.dart';
 import '../app_colors.dart';
 import '../widgets/formulario_transacao.dart';
+import '../services/database_service.dart';
 import 'tela_categorias.dart';
 import 'tela_graficos.dart';
+import 'tela_configuracao_seguranca.dart';
 
 class PaginaInicial extends StatefulWidget {
-  final String codigoGrupo;
-  final VoidCallback onSair;
-  const PaginaInicial({super.key, required this.codigoGrupo, required this.onSair});
+  const PaginaInicial({super.key});
 
   @override
   State<PaginaInicial> createState() => _PaginaInicialState();
@@ -20,13 +19,61 @@ class PaginaInicial extends StatefulWidget {
 
 class _PaginaInicialState extends State<PaginaInicial> {
   final formatadorMoeda = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
+  List<Map<String, dynamic>> _transacoes = [];
+  bool _carregando = true;
 
   @override
   void initState() {
     super.initState();
+    _carregarTransacoes();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _verificarSeMostraTutorial();
     });
+  }
+
+  Future<void> _carregarTransacoes() async {
+    setState(() => _carregando = true);
+    final transacoes = await DatabaseService.obterTransacoes();
+    setState(() {
+      _transacoes = transacoes;
+      _carregando = false;
+    });
+  }
+
+  List<Map<String, dynamic>> _getTransacoesHistoricoOrdenadas() {
+    final historico = _transacoes.where((t) => t['eParcelaFutura'] == 0).toList();
+    
+    // Ordenar por data (mais recente primeiro) e depois por timestamp (mais recente primeiro)
+    historico.sort((a, b) {
+      final dataA = DateTime.parse(a['data']);
+      final dataB = DateTime.parse(b['data']);
+      
+      // Primeiro compara as datas (mais recente primeiro)
+      final dateComparison = dataB.compareTo(dataA);
+      if (dateComparison != 0) {
+        return dateComparison;
+      }
+      
+      // Se as datas são iguais, compara os timestamps (mais recente primeiro)
+      final timestampA = a['timestamp'] as int? ?? 0;
+      final timestampB = b['timestamp'] as int? ?? 0;
+      return timestampB.compareTo(timestampA);
+    });
+    
+    return historico;
+  }
+
+  List<Map<String, dynamic>> _getTransacoesFaturasOrdenadas() {
+    final faturas = _transacoes.where((t) => t['eParcelaFutura'] == 1).toList();
+    
+    // Para faturas, ordenar por data (mais próxima primeiro)
+    faturas.sort((a, b) {
+      final dataA = DateTime.parse(a['data']);
+      final dataB = DateTime.parse(b['data']);
+      return dataA.compareTo(dataB);
+    });
+    
+    return faturas;
   }
 
   void _verificarSeMostraTutorial() async {
@@ -70,7 +117,7 @@ class _PaginaInicialState extends State<PaginaInicial> {
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Icon(Icons.settings_outlined, size: 20),
               SizedBox(width: 8),
-              Expanded(child: Text('Use o ícone de engrenagem ⚙️ para gerenciar suas categorias.')),
+              Expanded(child: Text('Use o ícone de engrenagem ⚙️ para acessar configurações: gerenciar categorias, configurar segurança e limpar dados.')),
             ]),
           ]),
         ),
@@ -79,23 +126,54 @@ class _PaginaInicialState extends State<PaginaInicial> {
     );
   }
 
-  CollectionReference get _transacoesRef =>
-      FirebaseFirestore.instance.collection('grupos').doc(widget.codigoGrupo).collection('transacoes');
+  void _mostrarDialogoLimparTransacoes() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('⚠️ Limpar Todas as Transações'),
+        content: const Text(
+          'Esta ação irá apagar TODAS as suas transações e faturas permanentemente.\n\nEsta ação não pode ser desfeita. Tem certeza?',
+        ),
+        actions: [
+          TextButton(
+            child: const Text('Cancelar'),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Sim, Limpar Tudo'),
+            onPressed: () async {
+              await DatabaseService.limparTodasTransacoes();
+              await _carregarTransacoes();
+              Navigator.of(ctx).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Todas as transações foram removidas'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
 
-  void _salvarTransacao(
-      {String? id,
+  Future<void> _salvarTransacao(
+      {int? id,
       required double valor,
       required TipoTransacao tipo,
       required String categoria,
       required DateTime data,
       required String observacao,
       required MetodoPagamento metodo,
-      required int parcelas}) {
+      required int parcelas}) async {
+    
     if (metodo == MetodoPagamento.Credito && tipo == TipoTransacao.Saida && id == null) {
       final numParcelas = parcelas > 0 ? parcelas : 1;
       final valorParcela = valor / numParcelas;
+      
       for (int i = 0; i < numParcelas; i++) {
-        
         int year = data.year;
         int month = data.month + i + 1;
         if (month > 12) {
@@ -108,111 +186,53 @@ class _PaginaInicialState extends State<PaginaInicial> {
             ? 'Parcela ${i + 1}/$numParcelas'
             : '$observacao (Parcela ${i + 1}/$numParcelas)';
             
-        _transacoesRef.add({
-          'valor': valorParcela, 'categoria': categoria, 'tipo': tipo.name,
+        await DatabaseService.inserirTransacao({
+          'valor': valorParcela,
+          'categoria': categoria,
+          'tipo': tipo.name,
           'data': DateFormat('yyyy-MM-dd').format(dataParcela),
-          'observacao': obsParcela, 'metodo': metodo.name, 'eParcelaFutura': true,
-          'timestamp': Timestamp.fromDate(dataParcela), 'parcelas': numParcelas,
+          'observacao': obsParcela,
+          'metodo': metodo.name,
+          'eParcelaFutura': 1,
+          'parcelas': numParcelas,
+          'timestamp': dataParcela.millisecondsSinceEpoch,
         });
       }
     } else {
       final transacaoMap = {
-        'valor': valor, 'categoria': categoria, 'tipo': tipo.name,
+        'valor': valor,
+        'categoria': categoria,
+        'tipo': tipo.name,
         'data': DateFormat('yyyy-MM-dd').format(data),
-        'observacao': observacao, 'metodo': metodo.name, 'eParcelaFutura': false,
+        'observacao': observacao,
+        'metodo': metodo.name,
+        'eParcelaFutura': 0,
         'parcelas': parcelas,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
       };
+      
       if (id == null) {
-        transacaoMap['timestamp'] = FieldValue.serverTimestamp();
-        _transacoesRef.add(transacaoMap);
+        await DatabaseService.inserirTransacao(transacaoMap);
       } else {
-        _transacoesRef.doc(id).update(transacaoMap);
+        await DatabaseService.atualizarTransacao(id, transacaoMap);
       }
     }
+    
+    await _carregarTransacoes();
   }
 
-  void _abrirModalDeTransacao(BuildContext ctx, [DocumentSnapshot? transacaoDoc]) {
+  void _abrirModalDeTransacao(BuildContext ctx, [Map<String, dynamic>? transacaoParaEditar]) {
     showModalBottomSheet(
       context: ctx, isScrollControlled: true,
       builder: (_) {
         return FormularioTransacao(
             onSalvar: _salvarTransacao,
-            transacaoParaEditar: transacaoDoc,
-            codigoGrupo: widget.codigoGrupo);
+            transacaoParaEditar: transacaoParaEditar);
       },
     );
   }
 
-  Widget _buildResumoCard(double saldoDinheiro, double saldoCartao, double faturaMes, double cofrinho, double investido) {
-    final valorTotal = saldoDinheiro + saldoCartao;
 
-    return Card(
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Text('Valor Total',
-                style: GoogleFonts.montserrat(
-                    fontSize: 22,
-                    color: AppColors.textoSecundario,
-                    fontWeight: FontWeight.w500)),
-            const SizedBox(height: 4),
-            Text(
-              formatadorMoeda.format(valorTotal),
-              style: GoogleFonts.montserrat(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textoPrincipal),
-            ),
-            const SizedBox(height: 12),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _miniResumoItem(
-                    icon: Icons.attach_money,
-                    label: 'Dinheiro',
-                    valor: saldoDinheiro,
-                    cor: Colors.green),
-                _miniResumoItem(
-                    icon: Icons.credit_card,
-                    label: 'Cartão',
-                    valor: saldoCartao,
-                    cor: Colors.orange),
-                    _miniResumoItem(
-                    icon: Icons.receipt_long,
-                    label: 'Fatura (Mês)',
-                    valor: faturaMes,
-                    cor: Colors.red),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                if (versaoPessoal)
-                  _miniResumoItem(
-                      icon: Icons.savings,
-                      label: 'Cofrinho',
-                      valor: cofrinho,
-                      cor: Colors.blue),
-                if (versaoPessoal)
-                  _miniResumoItem(
-                      icon: Icons.trending_up,
-                      label: 'Investido',
-                      valor: investido,
-                      cor: Colors.purple),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
 Widget _miniResumoItem(
     {required IconData icon,
@@ -235,21 +255,19 @@ Widget _miniResumoItem(
   );
 }
 
-  Widget _buildListaHistorico(List<QueryDocumentSnapshot> docs) {
+  Widget _buildListaHistorico(List<Map<String, dynamic>> docs) {
     if (docs.isEmpty) return const Center(child: Text('Nenhuma transação no histórico.'));
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 90.0),
       itemCount: docs.length,
       itemBuilder: (ctx, index) {
-        final transacaoDoc = docs[index];
-        final transacaoData = transacaoDoc.data() as Map<String, dynamic>;
-        final tipo =
-            transacaoData['tipo'] == 'Entrada' ? TipoTransacao.Entrada : TipoTransacao.Saida;
-        final data = DateTime.parse(transacaoData['data']);
-        final observacao = transacaoData['observacao'] ?? '';
-        final docId = transacaoDoc.id;
+        final transacao = docs[index];
+        final tipo = transacao['tipo'] == 'Entrada' ? TipoTransacao.Entrada : TipoTransacao.Saida;
+        final data = DateTime.parse(transacao['data']);
+        final observacao = transacao['observacao'] ?? '';
+        final id = transacao['id'];
         final cor = tipo == TipoTransacao.Entrada ? AppColors.entrada : AppColors.saida;
-        final metodo = MetodoPagamento.values.firstWhere((e) => e.name == transacaoData['metodo'],
+        final metodo = MetodoPagamento.values.firstWhere((e) => e.name == transacao['metodo'],
             orElse: () => MetodoPagamento.Dinheiro);
         
         String metodoFormatado = metodo.nomeFormatado;
@@ -258,7 +276,7 @@ Widget _miniResumoItem(
         }
 
         return Dismissible(
-          key: Key(docId),
+          key: Key(id.toString()),
           confirmDismiss: (direction) async {
             return await showDialog(
               context: context,
@@ -281,8 +299,9 @@ Widget _miniResumoItem(
               },
             );
           },
-          onDismissed: (direction) {
-            _transacoesRef.doc(docId).delete();
+          onDismissed: (direction) async {
+            await DatabaseService.excluirTransacao(id);
+            await _carregarTransacoes();
           },
           background: Container(
             color: AppColors.saida,
@@ -293,14 +312,14 @@ Widget _miniResumoItem(
           ),
           direction: DismissDirection.endToStart,
           child: ListTile(
-            onTap: () => _abrirModalDeTransacao(context, transacaoDoc),
+            onTap: () => _abrirModalDeTransacao(context, transacao),
             leading: CircleAvatar(
               backgroundColor: cor,
               child: Icon(
                   tipo == TipoTransacao.Entrada ? Icons.arrow_upward : Icons.arrow_downward,
                   color: Colors.white),
             ),
-            title: Text(transacaoData['categoria'], style: const TextStyle(fontWeight: FontWeight.bold)),
+            title: Text(transacao['categoria'], style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -309,7 +328,7 @@ Widget _miniResumoItem(
               ],
             ),
             trailing: Text(
-              formatadorMoeda.format(transacaoData['valor']),
+              formatadorMoeda.format(transacao['valor']),
               style: TextStyle(fontWeight: FontWeight.bold, color: cor, fontSize: 16),
             ),
           ),
@@ -318,12 +337,12 @@ Widget _miniResumoItem(
     );
   }
 
-  Widget _buildListaFaturas(List<QueryDocumentSnapshot> docs) {
+  Widget _buildListaFaturas(List<Map<String, dynamic>> docs) {
     if (docs.isEmpty) return const Center(child: Text('Nenhuma fatura futura.'));
 
-    final Map<String, List<QueryDocumentSnapshot>> faturasPorMes = {};
+    final Map<String, List<Map<String, dynamic>>> faturasPorMes = {};
     for (var doc in docs) {
-      final data = DateTime.parse((doc.data() as Map)['data']);
+      final data = DateTime.parse(doc['data']);
       final chaveMes = DateFormat('yyyy-MM').format(data);
       if (faturasPorMes[chaveMes] == null) {
         faturasPorMes[chaveMes] = [];
@@ -367,15 +386,14 @@ Widget _miniResumoItem(
                     padding: const EdgeInsets.only(bottom: 20),
                     itemCount: faturasDoMes.length,
                     itemBuilder: (ctx, index) {
-                      final transacaoDoc = faturasDoMes[index];
-                      final transacaoData = transacaoDoc.data() as Map<String, dynamic>;
+                      final transacao = faturasDoMes[index];
                       
                       return ListTile(
                         leading: const CircleAvatar(child: Icon(Icons.credit_card)),
-                        title: Text(transacaoData['categoria']),
-                        subtitle: Text(transacaoData['observacao'] ?? ''),
+                        title: Text(transacao['categoria']),
+                        subtitle: Text(transacao['observacao'] ?? ''),
                         trailing: Text(
-                          formatadorMoeda.format(transacaoData['valor']),
+                          formatadorMoeda.format(transacao['valor']),
                           style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.saida, fontSize: 16),
                         ),
                         onTap: () {
@@ -388,17 +406,18 @@ Widget _miniResumoItem(
                               actions: [
                                 TextButton(onPressed: () => Navigator.of(dCtx).pop(), child: const Text('Cancelar')),
                                 ElevatedButton(
-                                  onPressed: (){
-                                    _salvarTransacao(
-                                      valor: transacaoData['valor'],
+                                  onPressed: () async {
+                                    await _salvarTransacao(
+                                      valor: transacao['valor'],
                                       tipo: TipoTransacao.Saida,
                                       categoria: 'Fatura',
                                       data: DateTime.now(),
-                                      observacao: 'Pagamento: ${transacaoData['categoria']} (${transacaoData['observacao']})',
+                                      observacao: 'Pagamento: ${transacao['categoria']} (${transacao['observacao']})',
                                       metodo: MetodoPagamento.Debito,
                                       parcelas: 1,
                                     );
-                                    _transacoesRef.doc(transacaoDoc.id).delete();
+                                    await DatabaseService.excluirTransacao(transacao['id']);
+                                    await _carregarTransacoes();
                                     Navigator.of(dCtx).pop();
                                   },
                                   child: const Text('Pagar'),
@@ -425,122 +444,75 @@ Widget _miniResumoItem(
       appBar: AppBar(
         title: const Text('Controle de Gastos'),
         actions: [
-              IconButton(
-              icon: const Icon(Icons.bar_chart),
-              tooltip: 'Ver Gráficos',
-              onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (ctx) => TelaGraficos(codigoGrupo: widget.codigoGrupo))),
+          IconButton(
+            icon: const Icon(Icons.bar_chart),
+            tooltip: 'Ver Gráficos',
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (ctx) => const TelaGraficos())),
           ),
           IconButton(
               icon: const Icon(Icons.help_outline),
               tooltip: 'Ajuda',
               onPressed: () => _mostrarDialogoDeBoasVindas(context)),
-          IconButton(
+          PopupMenuButton<String>(
             icon: const Icon(Icons.settings),
-            tooltip: 'Gerenciar Categorias',
-            onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (ctx) => TelaGerenciarCategorias(codigoGrupo: widget.codigoGrupo))),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Sair do Grupo',
-            onPressed: () async {
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.remove('codigo_grupo');
-              await prefs.remove('tutorial_visto');
-              widget.onSair();
+            tooltip: 'Configurações',
+            onSelected: (String result) {
+              if (result == 'categorias') {
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (ctx) => const TelaGerenciarCategorias()));
+              } else if (result == 'seguranca') {
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (ctx) => const TelaConfiguracaoSeguranca()));
+              } else if (result == 'limpar') {
+                _mostrarDialogoLimparTransacoes();
+              }
             },
-          )
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'categorias',
+                child: ListTile(
+                  leading: Icon(Icons.category),
+                  title: Text('Gerenciar Categorias'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'seguranca',
+                child: ListTile(
+                  leading: Icon(Icons.security, color: Colors.blue),
+                  title: Text('Configurar Segurança'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'limpar',
+                child: ListTile(
+                  leading: Icon(Icons.delete_sweep, color: Colors.red),
+                  title: Text('Limpar Todas as Transações', style: TextStyle(color: Colors.red)),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
       body: DefaultTabController(
         length: 2,
         child: Column(
           children: [
-            StreamBuilder<QuerySnapshot>(
-              stream: _transacoesRef.snapshots(),
-              builder: (ctx, snapshot) {
-                if (!snapshot.hasData) return _buildResumoCard(0, 0, 0, 0, 0);
-                final docs = snapshot.data?.docs ?? [];
-                
-                double entradasDinheiro = 0, saidasDinheiro = 0;
-                double entradasCartao = 0, saidasCartaoDebito = 0;
-                double cofrinho = 0, investido = 0, faturaMesAtual = 0;
-                
-                final hoje = DateTime.now();
-
-                for (var doc in docs) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  final metodo = MetodoPagamento.values.firstWhere((e) => e.name == data['metodo'], orElse: () => MetodoPagamento.Dinheiro);
-                  final valor = data['valor'] as num;
-                  final categoria = data['categoria'] as String;
-                  final tipo = data['tipo'] == 'Entrada' ? TipoTransacao.Entrada : TipoTransacao.Saida;
-                  final isParcelaFutura = data['eParcelaFutura'] as bool? ?? false;
-                  
-                  if (tipo == TipoTransacao.Entrada) {
-                    if (categoria != 'Cofrinho') {
-                      if (metodo == MetodoPagamento.Dinheiro) {
-                        entradasDinheiro += valor;
-                      } else {
-                        entradasCartao += valor;
-                      }
-                    }
-                  } else {
-                    if (metodo == MetodoPagamento.Dinheiro) {
-                      saidasDinheiro += valor;
-                    } else if (metodo == MetodoPagamento.Debito) saidasCartaoDebito += valor;
-                  }
-
-                  if (isParcelaFutura) {
-                    final dataParcela = DateTime.parse(data['data']);
-                    if (dataParcela.month == hoje.month && dataParcela.year == hoje.year) {
-                      faturaMesAtual += valor;
-                    }
-                  }
-                  
-                  if (categoria == 'Cofrinho') cofrinho += valor;
-                  if (categoria == 'Investido') investido += valor;
-                }
-                
-                final saldoDinheiro = entradasDinheiro - saidasDinheiro;
-                final saldoCartao = entradasCartao - saidasCartaoDebito;
-                
-                return _buildResumoCard(saldoDinheiro, saldoCartao, faturaMesAtual, cofrinho, investido);
-              },
-            ),
+            // Card de resumo
+            _buildResumoCard(),
             const TabBar(tabs: [Tab(text: 'Histórico'), Tab(text: 'Faturas')]),
             Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: _transacoesRef.snapshots(),
-                builder: (ctx, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                  final docs = snapshot.data?.docs ?? [];
-                  List<QueryDocumentSnapshot> historicoDocs = docs.where((doc) => (doc.data() as Map)['eParcelaFutura'] == false).toList();
-                  List<QueryDocumentSnapshot> faturaDocs = docs.where((doc) => (doc.data() as Map)['eParcelaFutura'] == true).toList();
-
-                  historicoDocs.sort((a, b) {
-                    final dataMapA = a.data() as Map<String, dynamic>;
-                    final dataMapB = b.data() as Map<String, dynamic>;
-                    final dateComparison = (dataMapB['data'] as String).compareTo(dataMapA['data'] as String);
-                    if (dateComparison == 0) {
-                      final timestampA = dataMapA['timestamp'] as Timestamp?;
-                      final timestampB = dataMapB['timestamp'] as Timestamp?;
-                      if (timestampB == null) return 1;
-                      if (timestampA == null) return -1;
-                      return timestampB.compareTo(timestampA);
-                    }
-                    return dateComparison;
-                  });
-                  faturaDocs.sort((a, b) => (a.data() as Map)['data'].compareTo((b.data() as Map)['data']));
-
-                  return TabBarView(
+              child: _carregando 
+                ? const Center(child: CircularProgressIndicator())
+                : TabBarView(
                     children: [
-                      _buildListaHistorico(historicoDocs),
-                      _buildListaFaturas(faturaDocs),
+                      _buildListaHistorico(_getTransacoesHistoricoOrdenadas()),
+                      _buildListaFaturas(_getTransacoesFaturasOrdenadas()),
                     ],
-                  );
-                },
-              ),
+                  ),
             ),
           ],
         ),
@@ -548,6 +520,117 @@ Widget _miniResumoItem(
       floatingActionButton: FloatingActionButton(
         child: const Icon(Icons.add),
         onPressed: () => _abrirModalDeTransacao(context),
+      ),
+    );
+  }
+
+  Widget _buildResumoCard() {
+    double entradasDinheiro = 0, saidasDinheiro = 0;
+    double entradasCartao = 0, saidasCartaoDebito = 0;
+    double cofrinho = 0, investido = 0, faturaMesAtual = 0;
+    
+    final hoje = DateTime.now();
+
+    for (var transacao in _transacoes) {
+      final metodo = MetodoPagamento.values.firstWhere((e) => e.name == transacao['metodo'], 
+          orElse: () => MetodoPagamento.Dinheiro);
+      final valor = transacao['valor'] as num;
+      final categoria = transacao['categoria'] as String;
+      final tipo = transacao['tipo'] == 'Entrada' ? TipoTransacao.Entrada : TipoTransacao.Saida;
+      final isParcelaFutura = transacao['eParcelaFutura'] == 1;
+      
+      if (tipo == TipoTransacao.Entrada) {
+        if (categoria != 'Cofrinho') {
+          if (metodo == MetodoPagamento.Dinheiro) {
+            entradasDinheiro += valor;
+          } else {
+            entradasCartao += valor;
+          }
+        }
+      } else {
+        if (metodo == MetodoPagamento.Dinheiro) {
+          saidasDinheiro += valor;
+        } else if (metodo == MetodoPagamento.Debito) saidasCartaoDebito += valor;
+      }
+
+      if (isParcelaFutura) {
+        final dataParcela = DateTime.parse(transacao['data']);
+        if (dataParcela.month == hoje.month && dataParcela.year == hoje.year) {
+          faturaMesAtual += valor;
+        }
+      }
+      
+      if (categoria == 'Cofrinho') cofrinho += valor;
+      if (categoria == 'Investido') investido += valor;
+    }
+    
+    final saldoDinheiro = entradasDinheiro - saidasDinheiro;
+    final saldoCartao = entradasCartao - saidasCartaoDebito;
+    final valorTotal = saldoDinheiro + saldoCartao;
+
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text('Valor Total',
+                style: GoogleFonts.montserrat(
+                    fontSize: 22,
+                    color: AppColors.textoSecundario,
+                    fontWeight: FontWeight.w500)),
+            const SizedBox(height: 4),
+            Text(
+              formatadorMoeda.format(valorTotal),
+              style: GoogleFonts.montserrat(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textoPrincipal),
+            ),
+            const SizedBox(height: 12),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _miniResumoItem(
+                    icon: Icons.attach_money,
+                    label: 'Dinheiro',
+                    valor: saldoDinheiro,
+                    cor: Colors.green),
+                _miniResumoItem(
+                    icon: Icons.credit_card,
+                    label: 'Cartão',
+                    valor: saldoCartao,
+                    cor: Colors.orange),
+                _miniResumoItem(
+                    icon: Icons.receipt_long,
+                    label: 'Fatura (Mês)',
+                    valor: faturaMesAtual,
+                    cor: Colors.red),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (versaoPessoal)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _miniResumoItem(
+                      icon: Icons.savings,
+                      label: 'Cofrinho',
+                      valor: cofrinho,
+                      cor: Colors.blue),
+                  _miniResumoItem(
+                      icon: Icons.trending_up,
+                      label: 'Investido',
+                      valor: investido,
+                      cor: Colors.purple),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }

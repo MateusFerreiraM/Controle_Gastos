@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../app_config.dart';
 import '../app_colors.dart';
+import '../services/database_service.dart';
 
 class FormularioTransacao extends StatefulWidget {
-  final Function({ String? id, required double valor, required TipoTransacao tipo, required String categoria, required DateTime data, required String observacao, required MetodoPagamento metodo, required int parcelas }) onSalvar;
-  final DocumentSnapshot? transacaoParaEditar;
-  final String codigoGrupo;
+  final Function({ int? id, required double valor, required TipoTransacao tipo, required String categoria, required DateTime data, required String observacao, required MetodoPagamento metodo, required int parcelas }) onSalvar;
+  final Map<String, dynamic>? transacaoParaEditar;
 
-  const FormularioTransacao({ required this.onSalvar, this.transacaoParaEditar, required this.codigoGrupo, super.key });
+  const FormularioTransacao({ required this.onSalvar, this.transacaoParaEditar, super.key });
 
   @override
   State<FormularioTransacao> createState() => _FormularioTransacaoState();
@@ -32,8 +31,10 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
     super.initState();
     _carregarCategorias();
     if (widget.transacaoParaEditar != null) {
-      final dados = widget.transacaoParaEditar!.data() as Map<String, dynamic>;
-      _valorController.text = dados['valor'].toString();
+      final dados = widget.transacaoParaEditar!;
+      // Converte o valor para formato brasileiro (com vírgula)
+      final valorFormatado = dados['valor'].toString().replaceAll('.', ',');
+      _valorController.text = valorFormatado;
       _obsController.text = dados['observacao'] ?? '';
       _tipoSelecionado = dados['tipo'] == 'Entrada' ? TipoTransacao.Entrada : TipoTransacao.Saida;
       _metodoSelecionado = MetodoPagamento.values.firstWhere((e) => e.name == dados['metodo'], orElse: () => MetodoPagamento.Dinheiro);
@@ -44,12 +45,13 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
   }
 
   Future<void> _carregarCategorias() async {
-    final grupoDoc = await FirebaseFirestore.instance.collection('grupos').doc(widget.codigoGrupo).get();
-    final dadosGrupo = grupoDoc.data();
-    if (mounted && dadosGrupo != null) {
+    final categoriasEntrada = await DatabaseService.obterCategorias('Entrada');
+    final categoriasSaida = await DatabaseService.obterCategorias('Saida');
+    
+    if (mounted) {
       setState(() {
-        _categoriasEntrada = List<String>.from(dadosGrupo['categoriasEntrada'] ?? []);
-        _categoriasSaida = List<String>.from(dadosGrupo['categoriasSaida'] ?? []);
+        _categoriasEntrada = categoriasEntrada.map((c) => c['nome'] as String).toList();
+        _categoriasSaida = categoriasSaida.map((c) => c['nome'] as String).toList();
         _carregandoCategorias = false;
       });
     } else if (mounted) {
@@ -58,12 +60,14 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
   }
 
   void _submeterFormulario() {
-    final valor = double.tryParse(_valorController.text) ?? 0.0;
+    // Converte vírgula para ponto antes de fazer o parse (padrão brasileiro → padrão internacional)
+    final valorTexto = _valorController.text.replaceAll(',', '.');
+    final valor = double.tryParse(valorTexto) ?? 0.0;
     final observacao = _obsController.text;
     final parcelas = int.tryParse(_parcelasController.text) ?? 1;
     if (valor <= 0 || _categoriaSelecionada == null) return;
-    final parcelasFinais = widget.transacaoParaEditar != null ? (widget.transacaoParaEditar!.data() as Map<String, dynamic>)['parcelas'] ?? 1 : parcelas;
-    widget.onSalvar(id: widget.transacaoParaEditar?.id, valor: valor, tipo: _tipoSelecionado, categoria: _categoriaSelecionada!, data: _dataSelecionada, observacao: observacao, metodo: _metodoSelecionado, parcelas: parcelasFinais);
+    final parcelasFinais = widget.transacaoParaEditar != null ? widget.transacaoParaEditar!['parcelas'] ?? 1 : parcelas;
+    widget.onSalvar(id: widget.transacaoParaEditar?['id'], valor: valor, tipo: _tipoSelecionado, categoria: _categoriaSelecionada!, data: _dataSelecionada, observacao: observacao, metodo: _metodoSelecionado, parcelas: parcelasFinais);
     Navigator.of(context).pop();
   }
 
@@ -134,7 +138,14 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
             Expanded(child: Text('Data: ${DateFormat('dd/MM/y', 'pt_BR').format(_dataSelecionada)}')),
             TextButton(onPressed: _abrirSeletorDeData, child: const Text('Alterar', style: TextStyle(fontWeight: FontWeight.bold)))
           ]),
-          TextField(controller: _valorController, decoration: const InputDecoration(labelText: 'Valor (R\$)'), keyboardType: const TextInputType.numberWithOptions(decimal: true)),
+          TextField(
+            controller: _valorController, 
+            decoration: const InputDecoration(
+              labelText: 'Valor (R\$)', 
+              hintText: 'Ex: 25,50'
+            ), 
+            keyboardType: const TextInputType.numberWithOptions(decimal: true)
+          ),
           const SizedBox(height: 16),
           if (_metodoSelecionado == MetodoPagamento.Credito && widget.transacaoParaEditar == null && _tipoSelecionado == TipoTransacao.Saida) ...[
             TextField(
