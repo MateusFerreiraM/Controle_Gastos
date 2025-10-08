@@ -69,11 +69,9 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
       return;
     }
 
-    // Tentar autenticação automática (apenas biometria)
-    final autoAuthResult = await AuthService.authenticate();
-    
+    // Se segurança está habilitada, sempre pedir autenticação
     setState(() {
-      _isAuthenticated = autoAuthResult;
+      _isAuthenticated = false;
       _isLoading = false;
     });
   }

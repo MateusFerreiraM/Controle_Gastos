@@ -1,18 +1,14 @@
-import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 
 class AuthService {
   static const String _pinKey = 'user_pin';
-  static const String _biometricEnabledKey = 'biometric_enabled';
   static const String _securityEnabledKey = 'security_enabled';
   static const String _failedAttemptsKey = 'failed_attempts';
   static const String _lastFailedAttemptKey = 'last_failed_attempt';
   static const int maxFailedAttempts = 5;
   static const int lockoutDurationMinutes = 15;
-
-  static final LocalAuthentication _localAuth = LocalAuthentication();
 
   // Verificar se a segurança está habilitada
   static Future<bool> isSecurityEnabled() async {
@@ -27,7 +23,6 @@ class AuthService {
     if (!enabled) {
       // Se desabilitou, limpar dados de segurança
       await prefs.remove(_pinKey);
-      await prefs.remove(_biometricEnabledKey);
       await prefs.remove(_failedAttemptsKey);
       await prefs.remove(_lastFailedAttemptKey);
     }
@@ -62,51 +57,6 @@ class AuthService {
     final bytes = utf8.encode(pin);
     final digest = sha256.convert(bytes);
     return digest.toString();
-  }
-
-  // Verificar se a biometria está disponível
-  static Future<bool> isBiometricAvailable() async {
-    try {
-      final isAvailable = await _localAuth.canCheckBiometrics;
-      final isDeviceSupported = await _localAuth.isDeviceSupported();
-      final availableBiometrics = await _localAuth.getAvailableBiometrics();
-      
-      return isAvailable && isDeviceSupported && availableBiometrics.isNotEmpty;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  // Verificar se a biometria está habilitada pelo usuário
-  static Future<bool> isBiometricEnabled() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_biometricEnabledKey) ?? false;
-  }
-
-  // Habilitar/desabilitar biometria
-  static Future<void> setBiometricEnabled(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_biometricEnabledKey, enabled);
-  }
-
-  // Autenticar com biometria
-  static Future<bool> authenticateWithBiometric() async {
-    try {
-      final isAvailable = await isBiometricAvailable();
-      if (!isAvailable) return false;
-
-      final isAuthenticated = await _localAuth.authenticate(
-        localizedReason: 'Use sua biometria para acessar o Controle de Gastos',
-        options: const AuthenticationOptions(
-          biometricOnly: true,
-          stickyAuth: true,
-        ),
-      );
-
-      return isAuthenticated;
-    } catch (e) {
-      return false;
-    }
   }
 
   // Verificar se está bloqueado por tentativas falhadas
@@ -165,51 +115,5 @@ class AuthService {
     
     final remainingTime = lockoutDuration - timeDifference;
     return Duration(milliseconds: remainingTime > 0 ? remainingTime : 0);
-  }
-
-  // Autenticação principal (tenta biometria primeiro, depois PIN)
-  static Future<bool> authenticate() async {
-    final isSecurityEnabled = await AuthService.isSecurityEnabled();
-    if (!isSecurityEnabled) return true;
-
-    final isLockedOut = await AuthService.isLockedOut();
-    if (isLockedOut) return false;
-
-    // Tentar biometria primeiro se estiver habilitada
-    final isBiometricEnabled = await AuthService.isBiometricEnabled();
-    if (isBiometricEnabled) {
-      final biometricResult = await AuthService.authenticateWithBiometric();
-      if (biometricResult) {
-        await AuthService.clearFailedAttempts();
-        return true;
-      }
-    }
-
-    // Se biometria falhou ou não está habilitada, não autenticar automaticamente
-    // Deixar para o usuário escolher entre biometria e PIN na tela
-    return false;
-  }
-
-  // Obter tipos de biometria disponíveis
-  static Future<List<BiometricType>> getAvailableBiometrics() async {
-    try {
-      return await _localAuth.getAvailableBiometrics();
-    } catch (e) {
-      return [];
-    }
-  }
-
-  // Obter texto descritivo da biometria disponível
-  static Future<String> getBiometricDescription() async {
-    final biometrics = await getAvailableBiometrics();
-    if (biometrics.contains(BiometricType.face)) {
-      return 'Reconhecimento Facial';
-    } else if (biometrics.contains(BiometricType.fingerprint)) {
-      return 'Digital';
-    } else if (biometrics.contains(BiometricType.iris)) {
-      return 'Íris';
-    } else {
-      return 'Biometria';
-    }
   }
 }

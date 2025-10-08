@@ -12,9 +12,6 @@ class TelaConfiguracaoSeguranca extends StatefulWidget {
 
 class _TelaConfiguracaoSegurancaState extends State<TelaConfiguracaoSeguranca> {
   bool _securityEnabled = false;
-  bool _biometricEnabled = false;
-  bool _biometricAvailable = false;
-  String _biometricDescription = 'Biometria';
   bool _isLoading = true;
 
   @override
@@ -25,15 +22,9 @@ class _TelaConfiguracaoSegurancaState extends State<TelaConfiguracaoSeguranca> {
 
   Future<void> _loadSettings() async {
     final securityEnabled = await AuthService.isSecurityEnabled();
-    final biometricEnabled = await AuthService.isBiometricEnabled();
-    final biometricAvailable = await AuthService.isBiometricAvailable();
-    final biometricDescription = await AuthService.getBiometricDescription();
 
     setState(() {
       _securityEnabled = securityEnabled;
-      _biometricEnabled = biometricEnabled;
-      _biometricAvailable = biometricAvailable;
-      _biometricDescription = biometricDescription;
       _isLoading = false;
     });
   }
@@ -95,7 +86,7 @@ class _TelaConfiguracaoSegurancaState extends State<TelaConfiguracaoSeguranca> {
           title: const Text('Desativar Segurança'),
           content: const Text(
             'Tem certeza que deseja desativar a segurança do aplicativo? '
-            'Isso removerá o PIN e a biometria.',
+            'Isso removerá o PIN de acesso.',
           ),
           actions: [
             TextButton(
@@ -115,7 +106,6 @@ class _TelaConfiguracaoSegurancaState extends State<TelaConfiguracaoSeguranca> {
         await AuthService.setSecurityEnabled(false);
         setState(() {
           _securityEnabled = false;
-          _biometricEnabled = false;
         });
         
         if (mounted) {
@@ -126,51 +116,6 @@ class _TelaConfiguracaoSegurancaState extends State<TelaConfiguracaoSeguranca> {
             ),
           );
         }
-      }
-    }
-  }
-
-  Future<void> _toggleBiometric(bool value) async {
-    if (value) {
-      // Testar biometria antes de ativar
-      final success = await AuthService.authenticateWithBiometric();
-      if (success) {
-        await AuthService.setBiometricEnabled(true);
-        setState(() {
-          _biometricEnabled = true;
-        });
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('$_biometricDescription ativada!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Falha ao verificar $_biometricDescription'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } else {
-      await AuthService.setBiometricEnabled(false);
-      setState(() {
-        _biometricEnabled = false;
-      });
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$_biometricDescription desativada'),
-            backgroundColor: Colors.orange,
-          ),
-        );
       }
     }
   }
@@ -213,8 +158,8 @@ class _TelaConfiguracaoSegurancaState extends State<TelaConfiguracaoSeguranca> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'Proteja seus dados financeiros com PIN e biometria. '
-                          'Quando ativado, será necessário autenticar para acessar o aplicativo.',
+                          'Proteja seus dados financeiros com PIN. '
+                          'Quando ativado, será necessário inserir o PIN para acessar o aplicativo.',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: AppColors.textoSecundario,
                           ),
@@ -262,34 +207,6 @@ class _TelaConfiguracaoSegurancaState extends State<TelaConfiguracaoSeguranca> {
                       onTap: _showChangePinDialog,
                     ),
                   ),
-                  
-                  const SizedBox(height: 8),
-                  
-                  // Biometria
-                  Card(
-                    child: ListTile(
-                      leading: Icon(
-                        Icons.fingerprint,
-                        color: _biometricAvailable 
-                          ? (_biometricEnabled ? Colors.green : AppColors.primaria)
-                          : Colors.grey,
-                      ),
-                      title: Text('$_biometricDescription'),
-                      subtitle: Text(
-                        _biometricAvailable
-                          ? (_biometricEnabled 
-                              ? 'Ativa - acesso rápido com $_biometricDescription'
-                              : 'Disponível - use sua $_biometricDescription para acesso rápido')
-                          : 'Não disponível neste dispositivo',
-                      ),
-                      trailing: _biometricAvailable
-                        ? Switch(
-                            value: _biometricEnabled,
-                            onChanged: _toggleBiometric,
-                          )
-                        : null,
-                    ),
-                  ),
                 ],
                 
                 const SizedBox(height: 24),
@@ -321,9 +238,9 @@ class _TelaConfiguracaoSegurancaState extends State<TelaConfiguracaoSeguranca> {
                         const SizedBox(height: 12),
                         Text(
                           '• Seu PIN é armazenado de forma segura (criptografado)\n'
-                          '• A biometria usa o sistema nativo do seu dispositivo\n'
                           '• Após 5 tentativas incorretas, o app fica bloqueado por 15 minutos\n'
-                          '• Você pode desativar a segurança a qualquer momento',
+                          '• Você pode desativar a segurança a qualquer momento\n'
+                          '• Todos os seus dados ficam armazenados localmente no seu dispositivo',
                           style: TextStyle(
                             color: Colors.blue.shade700,
                             fontSize: 14,

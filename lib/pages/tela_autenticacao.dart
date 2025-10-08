@@ -16,7 +16,6 @@ class _TelaAutenticacaoState extends State<TelaAutenticacao> {
   bool _isLockedOut = false;
   Duration _lockoutTimeRemaining = Duration.zero;
   int _remainingAttempts = 5;
-  String _biometricDescription = 'Biometria';
 
   @override
   void initState() {
@@ -26,15 +25,6 @@ class _TelaAutenticacaoState extends State<TelaAutenticacao> {
 
   Future<void> _initializeAuth() async {
     await _updateLockoutStatus();
-    await _updateBiometricInfo();
-    
-    if (!_isLockedOut) {
-      // Tentar autenticação automática com biometria
-      final isBiometricEnabled = await AuthService.isBiometricEnabled();
-      if (isBiometricEnabled) {
-        _authenticateWithBiometric();
-      }
-    }
   }
 
   Future<void> _updateLockoutStatus() async {
@@ -49,13 +39,6 @@ class _TelaAutenticacaoState extends State<TelaAutenticacao> {
     if (isLockedOut) {
       _startLockoutTimer();
     }
-  }
-
-  Future<void> _updateBiometricInfo() async {
-    final description = await AuthService.getBiometricDescription();
-    setState(() {
-      _biometricDescription = description;
-    });
   }
 
   void _startLockoutTimer() async {
@@ -81,33 +64,6 @@ class _TelaAutenticacaoState extends State<TelaAutenticacao> {
       }
       return true;
     });
-  }
-
-  Future<void> _authenticateWithBiometric() async {
-    if (_isLockedOut) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final success = await AuthService.authenticateWithBiometric();
-      
-      if (success) {
-        await AuthService.clearFailedAttempts();
-        if (mounted) {
-          Navigator.of(context).pop(true);
-        }
-      }
-    } catch (e) {
-      // Falha silenciosa na biometria - usuário pode usar PIN
-    }
-
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
   }
 
   Future<void> _authenticateWithPin() async {
@@ -281,46 +237,7 @@ class _TelaAutenticacaoState extends State<TelaAutenticacao> {
                 children: List.generate(6, (index) => _buildPinDot(index)),
               ),
               
-              const SizedBox(height: 32),
-              
-              // Botão de biometria
-              FutureBuilder<bool>(
-                future: AuthService.isBiometricEnabled(),
-                builder: (context, snapshot) {
-                  if (snapshot.data == true && !_isLockedOut) {
-                    return Column(
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: _isLoading ? null : _authenticateWithBiometric,
-                          icon: const Icon(Icons.fingerprint),
-                          label: Text('Usar $_biometricDescription'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaria,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 32,
-                              vertical: 16,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(25),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          'ou digite seu PIN',
-                          style: TextStyle(
-                            color: AppColors.textoSecundario,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                      ],
-                    );
-                  }
-                  return const SizedBox(height: 16);
-                },
-              ),
+              const SizedBox(height: 16),
               
               const Spacer(),
               
