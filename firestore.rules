@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Regras para a coleção de grupos
+    match /grupos/{grupoId} {
+      // Permite ler e escrever no documento do grupo
+      // Qualquer pessoa que conhece o ID do grupo pode acessar
+      allow read, write: if grupoId != null && grupoId != '';
+      
+      // Regras para as transações dentro de cada grupo
+      match /transacoes/{transacaoId} {
+        // Permite ler e escrever transações do grupo
+        allow read, write: if grupoId != null && grupoId != '';
+        
+        // Permite criar novas transações
+        allow create: if grupoId != null && grupoId != '' && 
+                         request.resource.data.keys().hasAll(['tipo', 'valor', 'categoria', 'data']) &&
+                         request.resource.data.tipo in ['Entrada', 'Saida'] &&
+                         request.resource.data.valor is number &&
+                         request.resource.data.valor > 0;
+        
+        // Permite atualizar transações existentes
+        allow update: if grupoId != null && grupoId != '' && 
+                         resource.data != null &&
+                         request.resource.data.keys().hasAll(['tipo', 'valor', 'categoria', 'data']);
+        
+        // Permite deletar transações
+        allow delete: if grupoId != null && grupoId != '';
+      }
+    }
+    
+    // Regra de fallback - nega acesso a qualquer outro documento
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
