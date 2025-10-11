@@ -6,8 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../app_config.dart';
 import '../app_colors.dart';
 import '../widgets/formulario_transacao.dart';
-import 'tela_categorias.dart';
 import 'tela_graficos.dart';
+import 'tela_menu_configuracoes.dart';
 
 class PaginaInicial extends StatefulWidget {
   final String codigoGrupo;
@@ -425,21 +425,22 @@ Widget _miniResumoItem(
       appBar: AppBar(
         title: const Text('Controle de Gastos'),
         actions: [
-              IconButton(
-              icon: const Icon(Icons.bar_chart),
-              tooltip: 'Ver Gráficos',
-              onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (ctx) => TelaGraficos(codigoGrupo: widget.codigoGrupo))),
+          IconButton(
+            icon: const Icon(Icons.bar_chart),
+            tooltip: 'Ver Gráficos',
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (ctx) => TelaGraficos(codigoGrupo: widget.codigoGrupo))),
           ),
           IconButton(
-              icon: const Icon(Icons.help_outline),
-              tooltip: 'Ajuda',
-              onPressed: () => _mostrarDialogoDeBoasVindas(context)),
+            icon: const Icon(Icons.help_outline),
+            tooltip: 'Ajuda',
+            onPressed: () => _mostrarDialogoDeBoasVindas(context),
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
-            tooltip: 'Gerenciar Categorias',
+            tooltip: 'Configurações',
             onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (ctx) => TelaGerenciarCategorias(codigoGrupo: widget.codigoGrupo))),
+                MaterialPageRoute(builder: (ctx) => TelaMenuConfiguracoes(codigoGrupo: widget.codigoGrupo))),
           ),
           IconButton(
             icon: const Icon(Icons.logout),

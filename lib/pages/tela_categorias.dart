@@ -81,43 +81,20 @@ class _TelaGerenciarCategoriasState extends State<TelaGerenciarCategorias> {
     }
   }
 
-  Future<void> _removerCategoria(TipoTransacao tipo, String categoria) async {
-    final campo = tipo == TipoTransacao.Entrada ? 'categoriasEntrada' : 'categoriasSaida';
-    await _grupoRef.update({
-      campo: FieldValue.arrayRemove([categoria])
-    });
-    _carregarCategorias();
-  }
-
-  Future<void> _apagarTodasAsTransacoes() async {
-    final transacoesRef = _grupoRef.collection('transacoes');
-    final querySnapshot = await transacoesRef.get();
+  Future<void> _editarCategoria(TipoTransacao tipo, String categoriaAntiga) async {
+    final TextEditingController controller = TextEditingController(text: categoriaAntiga);
     
-    final batch = FirebaseFirestore.instance.batch();
-
-    for (var doc in querySnapshot.docs) {
-      batch.delete(doc.reference);
-    }
-    
-    await batch.commit();
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Todas as transações foram apagadas com sucesso!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    }
-  }
-
-  void _mostrarDialogoDeConfirmacao() {
-    showDialog(
+    final novoNome = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('⚠️ Atenção!'),
-        content: const Text(
-          'Você tem certeza que deseja apagar TODAS as transações? Esta ação não pode ser desfeita.',
+        title: const Text('Editar Categoria'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Nome da categoria',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
         ),
         actions: [
           TextButton(
@@ -125,17 +102,96 @@ class _TelaGerenciarCategoriasState extends State<TelaGerenciarCategorias> {
             onPressed: () => Navigator.of(ctx).pop(),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Sim, Apagar Tudo'),
+            child: const Text('Salvar'),
             onPressed: () {
-              Navigator.of(ctx).pop();
-              _apagarTodasAsTransacoes();
+              final texto = controller.text.trim();
+              if (texto.isNotEmpty && texto != categoriaAntiga) {
+                Navigator.of(ctx).pop(texto);
+              } else {
+                Navigator.of(ctx).pop();
+              }
             },
           ),
         ],
       ),
     );
+
+    if (novoNome != null) {
+      final campo = tipo == TipoTransacao.Entrada ? 'categoriasEntrada' : 'categoriasSaida';
+      final List<String> categorias = tipo == TipoTransacao.Entrada ? _categoriasEntrada : _categoriasSaida;
+      
+      if (categorias.contains(novoNome)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Esta categoria já existe!'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Remove a categoria antiga e adiciona a nova
+      await _grupoRef.update({
+        campo: FieldValue.arrayRemove([categoriaAntiga])
+      });
+      await _grupoRef.update({
+        campo: FieldValue.arrayUnion([novoNome])
+      });
+      
+      _carregarCategorias();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Categoria editada com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
   }
+
+  Future<void> _removerCategoria(TipoTransacao tipo, String categoria) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir Categoria'),
+        content: Text('Tem certeza que deseja excluir a categoria "$categoria"?'),
+        actions: [
+          TextButton(
+            child: const Text('Cancelar'),
+            onPressed: () => Navigator.of(ctx).pop(false),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Excluir'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar == true) {
+      final campo = tipo == TipoTransacao.Entrada ? 'categoriasEntrada' : 'categoriasSaida';
+      await _grupoRef.update({
+        campo: FieldValue.arrayRemove([categoria])
+      });
+      _carregarCategorias();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Categoria removida com sucesso!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -167,9 +223,18 @@ class _TelaGerenciarCategoriasState extends State<TelaGerenciarCategorias> {
                             final categoria = _categoriasEntrada[index];
                             return ListTile(
                               title: Text(categoria),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                onPressed: () => _removerCategoria(TipoTransacao.Entrada, categoria),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_outlined, color: Colors.blue),
+                                    onPressed: () => _editarCategoria(TipoTransacao.Entrada, categoria),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                    onPressed: () => _removerCategoria(TipoTransacao.Entrada, categoria),
+                                  ),
+                                ],
                               ),
                             );
                           },
@@ -180,9 +245,18 @@ class _TelaGerenciarCategoriasState extends State<TelaGerenciarCategorias> {
                             final categoria = _categoriasSaida[index];
                             return ListTile(
                               title: Text(categoria),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                onPressed: () => _removerCategoria(TipoTransacao.Saida, categoria),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_outlined, color: Colors.blue),
+                                    onPressed: () => _editarCategoria(TipoTransacao.Saida, categoria),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                    onPressed: () => _removerCategoria(TipoTransacao.Saida, categoria),
+                                  ),
+                                ],
                               ),
                             );
                           },
@@ -190,17 +264,6 @@ class _TelaGerenciarCategoriasState extends State<TelaGerenciarCategorias> {
                       ],
                     ),
                   ),
-
-                  const Divider(),
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: ListTile(
-                      leading: const Icon(Icons.delete_forever, color: Colors.red),
-                      title: const Text('Apagar Todas as Transações', style: TextStyle(color: Colors.red)),
-                      subtitle: const Text('Esta ação é irreversível.'),
-                      onTap: _mostrarDialogoDeConfirmacao,
-                    ),
-                  )
                 ],
               ),
         floatingActionButton: Builder(
