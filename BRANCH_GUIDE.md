@@ -101,19 +101,6 @@ git push origin vX.Y.Z
 - **v3.0-firebase-enhanced**: Histórico preservado
 - **v2.0-local-development**: Arquivo histórico
 
-## 📈 **Próximas Versões**
-
-### **v3.1 (Planejada):**
-- [ ] Relatórios exportáveis (PDF/Excel)
-- [ ] Metas financeiras
-- [ ] Notificações push
-
-### **v4.0 (Futuro):**
-- [ ] Modo offline completo
-- [ ] Múltiplos usuários
-- [ ] Dashboard avançado
-- [ ] API REST
-
 ---
 
 **📝 Nota:** Esta organização preserva todo o histórico de desenvolvimento e facilita a manutenção futura do projeto.
