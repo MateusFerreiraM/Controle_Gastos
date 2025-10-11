@@ -6,8 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../app_config.dart';
 import '../app_colors.dart';
 import '../widgets/formulario_transacao.dart';
-import 'tela_categorias.dart';
 import 'tela_graficos.dart';
+import 'tela_menu_configuracoes.dart';
 
 class PaginaInicial extends StatefulWidget {
   final String codigoGrupo;
@@ -43,38 +43,140 @@ class _PaginaInicialState extends State<PaginaInicial> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('👋 Bem-vindo!'),
-        content: const SingleChildScrollView(
-          child:
-              Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Aqui estão algumas dicas para começar:'),
-            SizedBox(height: 16),
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(Icons.swipe_left_outlined, size: 20),
-              SizedBox(width: 8),
-              Expanded(child: Text('Deslize um item da lista para a esquerda para excluí-lo.')),
-            ]),
-            SizedBox(height: 12),
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(Icons.touch_app_outlined, size: 20),
-              SizedBox(width: 8),
-              Expanded(child: Text('Toque em um item da lista para editá-lo.')),
-            ]),
-            SizedBox(height: 12),
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(Icons.credit_card_outlined, size: 20),
-              SizedBox(width: 8),
-              Expanded(child: Text('Compras no crédito vão para a aba "Faturas" com vencimento no mês seguinte. Toque em uma parcela para pagá-la.')),
-            ]),
-            SizedBox(height: 12),
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(Icons.settings_outlined, size: 20),
-              SizedBox(width: 8),
-              Expanded(child: Text('Use o ícone de engrenagem ⚙️ para gerenciar suas categorias.')),
-            ]),
-          ]),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.primaria.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(Icons.help_center, color: AppColors.primaria, size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Text('💡 Como Usar o App'),
+          ],
         ),
-        actions: [TextButton(child: const Text('Entendi!'), onPressed: () => Navigator.of(ctx).pop())],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min, 
+            crossAxisAlignment: CrossAxisAlignment.start, 
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.primaria.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.primaria.withOpacity(0.2)),
+                ),
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '🚀 Dicas para começar:', 
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    SizedBox(height: 12),
+                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.add_circle_outline, size: 20, color: AppColors.entrada),
+                      SizedBox(width: 8),
+                      Expanded(child: Text('Toque no botão "+" para adicionar uma transação')),
+                    ]),
+                    SizedBox(height: 8),
+                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.touch_app_outlined, size: 20, color: AppColors.primaria),
+                      SizedBox(width: 8),
+                      Expanded(child: Text('Toque em um item da lista para editá-lo')),
+                    ]),
+                    SizedBox(height: 8),
+                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.swipe_left_outlined, size: 20, color: AppColors.saida),
+                      SizedBox(width: 8),
+                      Expanded(child: Text('Deslize um item para a esquerda para excluí-lo')),
+                    ]),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.entrada.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.entrada.withOpacity(0.2)),
+                ),
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '💳 Cartão de Crédito:', 
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    SizedBox(height: 8),
+                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.credit_card_outlined, size: 20, color: AppColors.entrada),
+                      SizedBox(width: 8),
+                      Expanded(child: Text('Compras no crédito aparecem na aba "Faturas" com vencimento no mês seguinte')),
+                    ]),
+                    SizedBox(height: 8),
+                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.payment_outlined, size: 20, color: AppColors.entrada),
+                      SizedBox(width: 8),
+                      Expanded(child: Text('Toque em uma parcela para marcá-la como paga')),
+                    ]),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.saida.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.saida.withOpacity(0.2)),
+                ),
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '⚙️ Configurações:', 
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    SizedBox(height: 8),
+                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.category_outlined, size: 20, color: AppColors.saida),
+                      SizedBox(width: 8),
+                      Expanded(child: Text('Use o menu de configurações para gerenciar suas categorias')),
+                    ]),
+                    SizedBox(height: 8),
+                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.bar_chart_outlined, size: 20, color: AppColors.saida),
+                      SizedBox(width: 8),
+                      Expanded(child: Text('Acesse os gráficos para ver análises detalhadas dos seus gastos')),
+                    ]),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            style: TextButton.styleFrom(
+              backgroundColor: AppColors.primaria.withOpacity(0.1),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            ),
+            child: Text(
+              'Entendi!', 
+              style: TextStyle(
+                color: AppColors.primaria, 
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ), 
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+        ],
       ),
     );
   }
@@ -425,21 +527,22 @@ Widget _miniResumoItem(
       appBar: AppBar(
         title: const Text('Controle de Gastos'),
         actions: [
-              IconButton(
-              icon: const Icon(Icons.bar_chart),
-              tooltip: 'Ver Gráficos',
-              onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (ctx) => TelaGraficos(codigoGrupo: widget.codigoGrupo))),
+          IconButton(
+            icon: const Icon(Icons.bar_chart),
+            tooltip: 'Ver Gráficos',
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (ctx) => TelaGraficos(codigoGrupo: widget.codigoGrupo))),
           ),
           IconButton(
-              icon: const Icon(Icons.help_outline),
-              tooltip: 'Ajuda',
-              onPressed: () => _mostrarDialogoDeBoasVindas(context)),
+            icon: const Icon(Icons.help_outline),
+            tooltip: 'Dicas e Tutorial',
+            onPressed: () => _mostrarDialogoDeBoasVindas(context),
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
-            tooltip: 'Gerenciar Categorias',
+            tooltip: 'Configurações',
             onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (ctx) => TelaGerenciarCategorias(codigoGrupo: widget.codigoGrupo))),
+                MaterialPageRoute(builder: (ctx) => TelaMenuConfiguracoes(codigoGrupo: widget.codigoGrupo))),
           ),
           IconButton(
             icon: const Icon(Icons.logout),

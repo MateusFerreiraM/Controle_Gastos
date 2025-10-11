@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../services/auth_service.dart';
 import '../app_config.dart';
 
 class TelaDeLogin extends StatefulWidget {
@@ -41,8 +41,7 @@ class _TelaDeLoginState extends State<TelaDeLogin> {
       }, SetOptions(merge: true));
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('codigo_grupo', codigo);
+    await AuthService.saveCodigoGrupo(codigo);
     await Future.delayed(const Duration(milliseconds: 300));
     if (mounted) widget.onConectar(codigo);
   }
