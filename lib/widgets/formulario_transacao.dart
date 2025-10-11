@@ -58,13 +58,143 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
   }
 
   void _submeterFormulario() {
-    final valor = double.tryParse(_valorController.text) ?? 0.0;
-    final observacao = _obsController.text;
+    // Lista para armazenar os erros de validação
+    List<String> erros = [];
+    
+    final valorTexto = _valorController.text.trim();
+    final valor = double.tryParse(valorTexto.replaceAll(',', '.')) ?? 0.0;
+    final observacao = _obsController.text.trim();
     final parcelas = int.tryParse(_parcelasController.text) ?? 1;
-    if (valor <= 0 || _categoriaSelecionada == null) return;
-    final parcelasFinais = widget.transacaoParaEditar != null ? (widget.transacaoParaEditar!.data() as Map<String, dynamic>)['parcelas'] ?? 1 : parcelas;
-    widget.onSalvar(id: widget.transacaoParaEditar?.id, valor: valor, tipo: _tipoSelecionado, categoria: _categoriaSelecionada!, data: _dataSelecionada, observacao: observacao, metodo: _metodoSelecionado, parcelas: parcelasFinais);
+    
+    // Validação do valor
+    if (valorTexto.isEmpty) {
+      erros.add('• O valor é obrigatório');
+    } else if (valor <= 0) {
+      erros.add('• O valor deve ser maior que zero');
+    } else if (valor > 999999) {
+      erros.add('• O valor não pode ser maior que R\$ 999.999,00');
+    }
+    
+    // Validação da categoria
+    if (_categoriaSelecionada == null || _categoriaSelecionada!.isEmpty) {
+      erros.add('• Selecione uma categoria');
+    }
+    
+    // Validação das parcelas para cartão de crédito
+    if (_metodoSelecionado == MetodoPagamento.Credito && 
+        _tipoSelecionado == TipoTransacao.Saida && 
+        widget.transacaoParaEditar == null) {
+      if (parcelas < 1 || parcelas > 48) {
+        erros.add('• O número de parcelas deve estar entre 1 e 48');
+      }
+    }
+    
+    // Validação da data
+    final hoje = DateTime.now();
+    final dataLimite = DateTime(hoje.year + 2, hoje.month, hoje.day);
+    if (_dataSelecionada.isAfter(dataLimite)) {
+      erros.add('• A data não pode ser muito no futuro');
+    }
+    
+    // Se há erros, mostrar alerta
+    if (erros.isNotEmpty) {
+      _mostrarAlertaValidacao(erros);
+      return;
+    }
+    
+    // Se chegou até aqui, pode salvar
+    final parcelasFinais = widget.transacaoParaEditar != null ? 
+        (widget.transacaoParaEditar!.data() as Map<String, dynamic>)['parcelas'] ?? 1 : 
+        parcelas;
+        
+    widget.onSalvar(
+      id: widget.transacaoParaEditar?.id, 
+      valor: valor, 
+      tipo: _tipoSelecionado, 
+      categoria: _categoriaSelecionada!, 
+      data: _dataSelecionada, 
+      observacao: observacao, 
+      metodo: _metodoSelecionado, 
+      parcelas: parcelasFinais
+    );
+    
+    // Mostrar mensagem de sucesso
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(widget.transacaoParaEditar == null ? 
+          '✅ Transação adicionada com sucesso!' : 
+          '✅ Transação atualizada com sucesso!'),
+        backgroundColor: AppColors.entrada,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    
     Navigator.of(context).pop();
+  }
+
+  void _mostrarAlertaValidacao(List<String> erros) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_rounded, color: AppColors.saida, size: 24),
+            const SizedBox(width: 8),
+            const Text('Atenção!', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Por favor, corrija os seguintes campos:',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.saida.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.saida.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: erros.map((erro) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Text(
+                    erro, 
+                    style: TextStyle(
+                      color: AppColors.saida,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                )).toList(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            style: TextButton.styleFrom(
+              backgroundColor: AppColors.primaria.withOpacity(0.1),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            ),
+            child: Text(
+              'Entendi',
+              style: TextStyle(
+                color: AppColors.primaria,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _abrirSeletorDeData() {
@@ -72,6 +202,92 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
       if (dataEscolhida == null) return;
       setState(() => _dataSelecionada = dataEscolhida);
     });
+  }
+
+  void _mostrarDialogoAjuda() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.help_outline, color: AppColors.primaria, size: 24),
+            const SizedBox(width: 8),
+            const Text('Como Preencher', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildItemAjuda('📊 Tipo:', 'Escolha "Entrada" para dinheiro recebido (salário, vendas) ou "Saída" para gastos'),
+              const SizedBox(height: 12),
+              _buildItemAjuda('💳 Método:', '''• Cartão de crédito permite parcelamento
+• Débito é pagamento à vista
+• Dinheiro para pagamentos em espécie'''),
+              const SizedBox(height: 12),
+              _buildItemAjuda('📅 Data:', 'Use a data real da transação para melhor controle'),
+              const SizedBox(height: 12),
+              _buildItemAjuda('💰 Valor:', 'Digite apenas números (ex: 25.50)'),
+              const SizedBox(height: 12),
+              _buildItemAjuda('📂 Categoria:', 'Organize suas transações por tipo de gasto'),
+              const SizedBox(height: 12),
+              _buildItemAjuda('📝 Observação:', 'Adicione detalhes importantes (ex: "Combustível posto X")'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            style: TextButton.styleFrom(
+              backgroundColor: AppColors.primaria.withOpacity(0.1),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            ),
+            child: Text(
+              'Entendi',
+              style: TextStyle(
+                color: AppColors.primaria,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItemAjuda(String titulo, String descricao) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primaria.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.primaria.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            titulo,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppColors.primaria,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            descricao,
+            style: TextStyle(
+              color: AppColors.textoSecundario,
+              fontSize: 13,
+              height: 1.3,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -90,7 +306,32 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
       padding: EdgeInsets.only(top: 16, left: 16, right: 16, bottom: MediaQuery.of(context).viewInsets.bottom + 16),
       child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(widget.transacaoParaEditar == null ? 'Nova Transação' : 'Editar Transação', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                widget.transacaoParaEditar == null ? 'Nova Transação' : 'Editar Transação', 
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: _mostrarDialogoAjuda,
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaria.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.primaria.withOpacity(0.3)),
+                  ),
+                  child: Icon(
+                    Icons.help_outline,
+                    color: AppColors.primaria,
+                    size: 18,
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           SegmentedButton<TipoTransacao>(
             segments: const <ButtonSegment<TipoTransacao>>[
