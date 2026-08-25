@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'dart:math';
 import '../app_colors.dart';
 
 class TelaGraficos extends StatelessWidget {
@@ -67,13 +68,13 @@ class TelaGraficos extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildResumoFinanceiro(context, transacoes),
+                _buildResumoHorizontal(context, transacoes),
                 const SizedBox(height: 24),
-                _buildGraficoGastosPorCategoria(context, transacoes),
+                _buildGastosEGanhos(context, transacoes),
                 const SizedBox(height: 24),
-                _buildGraficoEvolucaoMensal(context, transacoes),
+                _buildEvolucaoMensalScrollavel(context, transacoes),
                 const SizedBox(height: 24),
-                _buildGraficoComparacaoEntradaSaida(context, transacoes),
+                _buildInsightsFinanceiros(context, transacoes),
                 const SizedBox(height: 100),
               ],
             ),
@@ -83,550 +84,339 @@ class TelaGraficos extends StatelessWidget {
     );
   }
 
-  Widget _buildResumoFinanceiro(BuildContext context, List<Map<String, dynamic>> transacoes) {
+  Widget _buildResumoHorizontal(BuildContext context, List<Map<String, dynamic>> transacoes) {
     final hoje = DateTime.now();
-    final inicioMes = DateTime(hoje.year, hoje.month, 1);
-    final fimMes = DateTime(hoje.year, hoje.month + 1, 0);
-    
     double entradaMes = 0, saidaMes = 0, faturaPendente = 0;
     double totalEntradas = 0, totalSaidas = 0;
-    int totalTransacoes = transacoes.length;
     
-    for (var transacao in transacoes) {
-      final data = DateTime.parse(transacao['data']);
-      final valor = transacao['valor'] as double;
-      final tipo = transacao['tipo'] as String;
-      final isParcelaFutura = transacao['eParcelaFutura'] == true;
+    for (var t in transacoes) {
+      final data = DateTime.parse(t['data'] as String);
+      final valor = t['valor'] as double;
+      final tipo = t['tipo'] as String;
+      final isParcelaFutura = t['eParcelaFutura'] == true;
       
       if (tipo == 'Entrada') {
         totalEntradas += valor;
-        if (data.isAfter(inicioMes.subtract(const Duration(days: 1))) && 
-            data.isBefore(fimMes.add(const Duration(days: 1))) && !isParcelaFutura) {
-          entradaMes += valor;
-        }
+        if (data.month == hoje.month && data.year == hoje.year && !isParcelaFutura) entradaMes += valor;
       } else {
         totalSaidas += valor;
         if (isParcelaFutura) {
           faturaPendente += valor;
-        } else if (data.isAfter(inicioMes.subtract(const Duration(days: 1))) && 
-                   data.isBefore(fimMes.add(const Duration(days: 1)))) {
+        } else if (data.month == hoje.month && data.year == hoje.year) {
           saidaMes += valor;
         }
       }
     }
     
     final saldoMes = entradaMes - saidaMes;
-    final saldoTotal = totalEntradas - totalSaidas;
-    
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.analytics, color: AppColors.primaria),
-                const SizedBox(width: 8),
-                Text(
-                  'Resumo Financeiro',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaria,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildResumoItem(
-                    'Este Mês',
-                    saldoMes,
-                    saldoMes >= 0 ? Colors.green : Colors.red,
-                    Icons.calendar_month,
-                  ),
-                ),
-                Expanded(
-                  child: _buildResumoItem(
-                    'Saldo Total',
-                    saldoTotal,
-                    saldoTotal >= 0 ? Colors.green : Colors.red,
-                    Icons.account_balance_wallet,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildResumoItem(
-                    'Faturas Pendentes',
-                    faturaPendente,
-                    Colors.orange,
-                    Icons.credit_card,
-                  ),
-                ),
-                Expanded(
-                  child: _buildResumoItem(
-                    'Total Transações',
-                    totalTransacoes.toDouble(),
-                    Colors.blue,
-                    Icons.receipt_long,
-                    isQuantidade: true,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildResumoItem(String label, double valor, Color cor, IconData icone, {bool isQuantidade = false}) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      margin: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: cor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: cor.withOpacity(0.3)),
-      ),
-      child: Column(
+    return SizedBox(
+      height: 120,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
         children: [
-          Icon(icone, color: cor, size: 24),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(fontSize: 12, color: cor, fontWeight: FontWeight.w500),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            isQuantidade 
-                ? valor.toInt().toString()
-                : NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(valor),
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: cor,
-            ),
-            textAlign: TextAlign.center,
-          ),
+          _buildMiniCard('Saldo do Mês', saldoMes, saldoMes >= 0 ? Colors.green : Colors.red, Icons.calendar_today),
+          _buildMiniCard('Faturas Futuras', faturaPendente, Colors.orange, Icons.credit_card),
         ],
       ),
     );
   }
 
-  Widget _buildGraficoGastosPorCategoria(BuildContext context, List<Map<String, dynamic>> transacoes) {
-    final saidas = transacoes.where((t) => t['tipo'] == 'Saida' && t['eParcelaFutura'] == false).toList();
-    
-    if (saidas.isEmpty) return const SizedBox.shrink();
+  Widget _buildMiniCard(String label, double valor, Color cor, IconData icon) {
+    return Container(
+      width: 150,
+      margin: const EdgeInsets.only(right: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cor.withOpacity(0.3)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: cor, size: 28),
+          const SizedBox(height: 8),
+          Text(label, style: TextStyle(fontSize: 12, color: cor, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Text(NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(valor), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: cor)),
+        ],
+      ),
+    );
+  }
 
-    final Map<String, double> gastosPorCategoria = {};
-    for (var transacao in saidas) {
-      final categoria = transacao['categoria'] as String;
-      final valor = transacao['valor'] as double;
-      gastosPorCategoria[categoria] = (gastosPorCategoria[categoria] ?? 0) + valor;
-    }
-
-    final categoriasOrdenadas = gastosPorCategoria.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-
-    // Mostrar apenas as top 6 categorias para melhor visualização horizontal
-    final topCategorias = categoriasOrdenadas.take(6).toList();
-
-    final cores = [
-      AppColors.saida,
-      Colors.orange,
-      Colors.blue,
-      Colors.green,
-      Colors.purple,
-      Colors.teal,
-    ];
-
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
+  Widget _buildGastosEGanhos(BuildContext context, List<Map<String, dynamic>> transacoes) {
+    return DefaultTabController(
+      length: 2,
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                const Icon(Icons.category, color: AppColors.primaria),
-                const SizedBox(width: 8),
-                Text(
-                  'Gastos por Categoria',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaria,
-                  ),
-                ),
+            const TabBar(
+              labelColor: AppColors.primaria,
+              indicatorColor: AppColors.primaria,
+              tabs: [
+                Tab(text: 'Onde Gastei'),
+                Tab(text: 'De Onde Veio'),
               ],
             ),
-            const SizedBox(height: 16),
-            // Gráfico horizontal com barras deitadas
-            ...topCategorias.asMap().entries.map((entry) {
-              final index = entry.key;
-              final categoria = entry.value;
-              final valor = categoria.value;
-              final maxValor = topCategorias.first.value;
-              final largura = (valor / maxValor) * 1.0; // Porcentagem da largura máxima
-              final cor = cores[index % cores.length];
-              
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          categoria.key,
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-                        ),
-                        Text(
-                          NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(valor),
-                          style: TextStyle(fontSize: 12, color: cor, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      width: double.infinity,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: FractionallySizedBox(
-                        alignment: Alignment.centerLeft,
-                        widthFactor: largura,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: cor,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
+            SizedBox(
+              height: 350,
+              child: TabBarView(
+                children: [
+                  _buildBarChartPorCategoria(transacoes, 'Saida', AppColors.saida),
+                  _buildBarChartPorCategoria(transacoes, 'Entrada', AppColors.entrada),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildGraficoEvolucaoMensal(BuildContext context, List<Map<String, dynamic>> transacoes) {
-    final transacoesHistorico = transacoes.where((t) => t['eParcelaFutura'] == false).toList();
+  Widget _buildBarChartPorCategoria(List<Map<String, dynamic>> transacoes, String tipo, Color corPadrao) {
+    final filtrados = transacoes.where((t) => t['tipo'] == tipo && t['eParcelaFutura'] == false).toList();
+    if (filtrados.isEmpty) return const Center(child: Text('Sem dados nesta categoria.'));
+
+    final Map<String, double> soma = {};
+    for (var t in filtrados) {
+      soma[t['categoria']] = (soma[t['categoria']] ?? 0) + (t['valor'] as double);
+    }
+
+    final ordenados = soma.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final top10 = ordenados.take(10).toList();
+    if (top10.isEmpty) return const SizedBox.shrink();
     
+    final maxValor = top10.first.value;
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: top10.length,
+      itemBuilder: (ctx, index) {
+        final cat = top10[index];
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(cat.key, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                  Text(NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(cat.value), 
+                       style: TextStyle(fontSize: 12, color: corPadrao, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Container(
+                height: 8,
+                decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(4)),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: (cat.value / maxValor).clamp(0.0, 1.0),
+                  child: Container(
+                    decoration: BoxDecoration(color: corPadrao, borderRadius: BorderRadius.circular(4)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEvolucaoMensalScrollavel(BuildContext context, List<Map<String, dynamic>> transacoes) {
+    final transacoesHistorico = transacoes.where((t) => t['eParcelaFutura'] == false).toList();
     if (transacoesHistorico.isEmpty) return const SizedBox.shrink();
 
-    transacoesHistorico.sort((a, b) => DateTime.parse(a['data']).compareTo(DateTime.parse(b['data'])));
-
+    transacoesHistorico.sort((a, b) => DateTime.parse(a['data'] as String).compareTo(DateTime.parse(b['data'] as String)));
+    
     final Map<String, double> saldoPorMes = {};
     double saldoAcumulado = 0;
-
-    for (var transacao in transacoesHistorico) {
-      final data = DateTime.parse(transacao['data']);
-      final chaveMes = DateFormat('yyyy-MM').format(data);
-      final valor = transacao['valor'] as double;
-      final tipo = transacao['tipo'] as String;
-
-      if (tipo == 'Entrada') {
-        saldoAcumulado += valor;
-      } else {
-        saldoAcumulado -= valor;
-      }
-
-      saldoPorMes[chaveMes] = saldoAcumulado;
+    for (var t in transacoesHistorico) {
+      final chave = DateFormat('yyyy-MM').format(DateTime.parse(t['data'] as String));
+      saldoAcumulado += (t['tipo'] == 'Entrada' ? 1 : -1) * (t['valor'] as double);
+      saldoPorMes[chave] = saldoAcumulado;
     }
 
     if (saldoPorMes.isEmpty) return const SizedBox.shrink();
 
-    final List<FlSpot> spots = [];
     final meses = saldoPorMes.keys.toList()..sort();
-
-    for (int i = 0; i < meses.length; i++) {
-      spots.add(FlSpot(i.toDouble(), saldoPorMes[meses[i]]!));
-    }
+    final spots = List.generate(meses.length, (i) => FlSpot(i.toDouble(), saldoPorMes[meses[i]]!));
+    
+    final chartWidth = max(MediaQuery.of(context).size.width - 64, meses.length * 60.0);
 
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(Icons.trending_up, color: AppColors.primaria),
+                const Icon(Icons.show_chart, color: AppColors.primaria),
                 const SizedBox(width: 8),
-                Text(
-                  'Evolução do Saldo',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaria,
-                  ),
-                ),
+                Text('Evolução do Saldo', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: AppColors.primaria)),
               ],
             ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 250,
-              child: LineChart(
-                LineChartData(
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: spots,
-                      isCurved: true,
-                      gradient: LinearGradient(
-                        colors: [AppColors.primaria, AppColors.entrada],
+            const SizedBox(height: 24),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: chartWidth,
+                height: 250,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 16.0),
+                  child: LineChart(
+                    LineChartData(
+                      lineBarsData: [
+                        LineChartBarData(
+                          spots: spots,
+                          isCurved: true,
+                          color: AppColors.primaria,
+                          barWidth: 3,
+                          dotData: const FlDotData(show: true),
+                          belowBarData: BarAreaData(
+                            show: true, 
+                            color: AppColors.primaria.withOpacity(0.2),
+                          ),
+                        )
+                      ],
+                      titlesData: FlTitlesData(
+                        leftTitles: AxisTitles(sideTitles: SideTitles(
+                          showTitles: true, reservedSize: 60,
+                          getTitlesWidget: (v, m) => Text('R\$ ${v.toInt()}', style: const TextStyle(fontSize: 10)),
+                        )),
+                        bottomTitles: AxisTitles(sideTitles: SideTitles(
+                          showTitles: true, 
+                          getTitlesWidget: (v, m) {
+                            if (v.toInt() >= 0 && v.toInt() < meses.length) {
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 8.0),
+                                child: Text(DateFormat('MM/yy').format(DateTime.parse('${meses[v.toInt()]}-01')), style: const TextStyle(fontSize: 10)),
+                              );
+                            }
+                            return const SizedBox();
+                          }
+                        )),
+                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                       ),
-                      barWidth: 3,
-                      dotData: FlDotData(
-                        show: true,
-                        getDotPainter: (spot, percent, barData, index) {
-                          return FlDotCirclePainter(
-                            radius: 4,
-                            color: AppColors.primaria,
-                            strokeWidth: 2,
-                            strokeColor: Colors.white,
-                          );
-                        },
-                      ),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        gradient: LinearGradient(
-                          colors: [
-                            AppColors.primaria.withOpacity(0.3),
-                            AppColors.primaria.withOpacity(0.1),
-                          ],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
+                      gridData: const FlGridData(show: true),
+                      borderData: FlBorderData(show: false),
+                      lineTouchData: LineTouchData(
+                        touchTooltipData: LineTouchTooltipData(
+                          getTooltipColor: (touchedSpot) => Colors.blueGrey,
+                          getTooltipItems: (touchedSpots) {
+                            return touchedSpots.map((spot) {
+                              final mes = meses[spot.x.toInt()];
+                              final data = DateTime.parse('$mes-01');
+                              final valor = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(spot.y);
+                              return LineTooltipItem(
+                                '${DateFormat('MMM/yy', 'pt_BR').format(data)}\n$valor',
+                                const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                              );
+                            }).toList();
+                          },
                         ),
                       ),
-                    ),
-                  ],
-                  titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 60,
-                        getTitlesWidget: (value, meta) {
-                          return Text(
-                            'R\$ ${value.toStringAsFixed(0)}',
-                            style: const TextStyle(fontSize: 10),
-                          );
-                        },
-                      ),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (value, meta) {
-                          if (value.toInt() < meses.length) {
-                            final mes = meses[value.toInt()];
-                            final data = DateTime.parse('$mes-01');
-                            return Text(
-                              DateFormat('MM/yy').format(data),
-                              style: const TextStyle(fontSize: 10),
-                            );
-                          }
-                          return const Text('');
-                        },
-                      ),
-                    ),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  ),
-                  gridData: const FlGridData(show: true),
-                  borderData: FlBorderData(
-                    show: true,
-                    border: Border.all(color: Colors.grey.withOpacity(0.3)),
-                  ),
-                  lineTouchData: LineTouchData(
-                    touchTooltipData: LineTouchTooltipData(
-                      getTooltipColor: (touchedSpot) => Colors.blueGrey,
-                      getTooltipItems: (touchedSpots) {
-                        return touchedSpots.map((spot) {
-                          final mes = meses[spot.x.toInt()];
-                          final data = DateTime.parse('$mes-01');
-                          final valor = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(spot.y);
-                          return LineTooltipItem(
-                            '${DateFormat('MMM/yy', 'pt_BR').format(data)}\n$valor',
-                            const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                          );
-                        }).toList();
-                      },
-                    ),
+                    )
                   ),
                 ),
               ),
-            ),
+            )
           ],
         ),
       ),
     );
   }
 
-  Widget _buildGraficoComparacaoEntradaSaida(BuildContext context, List<Map<String, dynamic>> transacoes) {
-    final transacoesHistorico = transacoes.where((t) => t['eParcelaFutura'] == false).toList();
+  Widget _buildInsightsFinanceiros(BuildContext context, List<Map<String, dynamic>> transacoes) {
+    final hoje = DateTime.now();
     
-    if (transacoesHistorico.isEmpty) return const SizedBox.shrink();
-
-    final Map<String, Map<String, double>> dadosPorMes = {};
-
-    for (var transacao in transacoesHistorico) {
-      final data = DateTime.parse(transacao['data']);
-      final chaveMes = DateFormat('yyyy-MM').format(data);
-      final valor = transacao['valor'] as double;
-      final tipo = transacao['tipo'] as String;
-
-      if (dadosPorMes[chaveMes] == null) {
-        dadosPorMes[chaveMes] = {'Entrada': 0, 'Saida': 0};
+    double entradaMes = 0, saidaMes = 0;
+    final Map<String, double> gastosPorCategoria = {};
+    
+    for (var t in transacoes) {
+      if (t['eParcelaFutura'] == true) continue;
+      final data = DateTime.parse(t['data'] as String);
+      
+      if (data.month == hoje.month && data.year == hoje.year) {
+        final valor = t['valor'] as double;
+        if (t['tipo'] == 'Entrada') {
+          entradaMes += valor;
+        } else {
+          saidaMes += valor;
+          gastosPorCategoria[t['categoria'] as String] = (gastosPorCategoria[t['categoria'] as String] ?? 0) + valor;
+        }
       }
-
-      dadosPorMes[chaveMes]![tipo] = (dadosPorMes[chaveMes]![tipo] ?? 0) + valor;
     }
-
-    final meses = dadosPorMes.keys.toList()..sort();
-    // Mostrar apenas os últimos 6 meses
-    final mesesRecentes = meses.length > 6 ? meses.sublist(meses.length - 6) : meses;
-
-    final List<BarChartGroupData> barGroups = [];
-
-    for (int i = 0; i < mesesRecentes.length; i++) {
-      final mes = mesesRecentes[i];
-      final entradas = dadosPorMes[mes]!['Entrada']!;
-      final saidas = dadosPorMes[mes]!['Saida']!;
-
-      barGroups.add(
-        BarChartGroupData(
-          x: i,
-          barRods: [
-            BarChartRodData(
-              toY: entradas,
-              color: AppColors.entrada,
-              width: 20,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(4),
-                topRight: Radius.circular(4),
-              ),
-            ),
-            BarChartRodData(
-              toY: saidas,
-              color: AppColors.saida,
-              width: 20,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(4),
-                topRight: Radius.circular(4),
-              ),
-            ),
-          ],
-        ),
-      );
+    
+    double taxaEconomia = entradaMes > 0 ? ((entradaMes - saidaMes) / entradaMes) * 100 : 0;
+    if(taxaEconomia < 0) taxaEconomia = 0;
+    
+    final gastoDiario = saidaMes / max(1, hoje.day);
+    
+    String categoriaVilao = "Nenhuma";
+    if (gastosPorCategoria.isNotEmpty) {
+      var entry = gastosPorCategoria.entries.reduce((a, b) => a.value > b.value ? a : b);
+      categoriaVilao = entry.key;
     }
-
+    
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(Icons.compare_arrows, color: AppColors.primaria),
+                const Icon(Icons.lightbulb_outline, color: Colors.orange),
                 const SizedBox(width: 8),
-                Text(
-                  'Entradas vs Saídas',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaria,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Container(
-                  width: 12,
-                  height: 12,
-                  color: AppColors.entrada,
-                ),
-                const SizedBox(width: 4),
-                const Text('Entradas', style: TextStyle(fontSize: 12)),
-                const SizedBox(width: 16),
-                Container(
-                  width: 12,
-                  height: 12,
-                  color: AppColors.saida,
-                ),
-                const SizedBox(width: 4),
-                const Text('Saídas', style: TextStyle(fontSize: 12)),
+                Text('Insights do Mês', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: AppColors.primaria)),
               ],
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              height: 250,
-              child: BarChart(
-                BarChartData(
-                  barGroups: barGroups,
-                  groupsSpace: 12,
-                  titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 60,
-                        getTitlesWidget: (value, meta) {
-                          return Text(
-                            'R\$ ${value.toStringAsFixed(0)}',
-                            style: const TextStyle(fontSize: 10),
-                          );
-                        },
-                      ),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (value, meta) {
-                          if (value.toInt() < mesesRecentes.length) {
-                            final mes = mesesRecentes[value.toInt()];
-                            final data = DateTime.parse('$mes-01');
-                            return Text(
-                              DateFormat('MM/yy').format(data),
-                              style: const TextStyle(fontSize: 10),
-                            );
-                          }
-                          return const Text('');
-                        },
-                      ),
-                    ),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  ),
-                  gridData: const FlGridData(show: true, drawVerticalLine: false),
-                  borderData: FlBorderData(show: false),
-                ),
-              ),
-            ),
+            _buildInsightItem(Icons.savings, 'Taxa de Poupança', '${taxaEconomia.toStringAsFixed(1)}% de economia neste mês.', Colors.green),
+            const Divider(),
+            _buildInsightItem(Icons.calendar_today, 'Gasto Médio Diário', '${NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(gastoDiario)} por dia.', Colors.blue),
+            const Divider(),
+            _buildInsightItem(Icons.warning_amber_rounded, 'Maior Despesa', 'A categoria "$categoriaVilao" é onde você mais gastou.', Colors.red),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildInsightItem(IconData icon, String title, String subtitle, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+            child: Icon(icon, color: color),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 4),
+                Text(subtitle, style: const TextStyle(color: AppColors.textoSecundario, fontSize: 13)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

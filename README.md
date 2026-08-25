@@ -21,17 +21,15 @@ O app utiliza o **Firebase (Cloud Firestore)** como backend, garantindo que os d
 - **Tipos de Transação:** Entradas (receitas) e Saídas (despesas)
 - **Métodos de Pagamento:** Dinheiro, Cartão de Débito, Cartão de Crédito
 - **Sistema de Parcelas:** Compras parceladas no cartão de crédito (1-48x)
+- **Filtros Avançados:** Filtre as transações do feed por Tipo (Entrada/Saída) ou Categoria.
 - **Validação Inteligente:** Sistema robusto de validação com alertas específicos
 - **Observações Detalhadas:** Campo livre para anotações importantes
 
 ### 📊 **Análise Financeira Avançada**
-- **4 Tipos de Gráficos Profissionais:**
-  - 📈 **Resumo Financeiro:** Cards com totais consolidados
-  - 🥧 **Gastos por Categoria:** Gráfico de barra com percentuais
-  - 📉 **Evolução Mensal:** Gráfico de linha temporal
-  - 📊 **Comparação Entrada vs Saída:** Gráfico de barras comparativo
-- **Análise em Tempo Real:** Dados sempre atualizados
-- **Visualização Interativa:** Interface rica e responsiva
+- **Carrossel de Resumo:** Cards dinâmicos e focados no Saldo do Mês e Faturas.
+- **Gráficos com Rolagem Histórica:** Visualize o histórico infinito arrastando os meses de evolução para o lado.
+- **Insights Inteligentes:** Resumo automático mostrando sua taxa de poupança, gasto médio diário e maior despesa.
+- **Separação Inteligente:** Abas separadas para analisar onde você gastou e de onde veio o seu dinheiro.
 
 ### 🏷️ **Sistema de Categorias**
 - **Categorias Personalizáveis:** Crie e gerencie suas próprias categorias

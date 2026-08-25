@@ -8,6 +8,7 @@ import '../app_colors.dart';
 import '../widgets/formulario_transacao.dart';
 import 'tela_graficos.dart';
 import 'tela_menu_configuracoes.dart';
+import '../widgets/resumo_card.dart';
 
 class PaginaInicial extends StatefulWidget {
   final String codigoGrupo;
@@ -20,6 +21,8 @@ class PaginaInicial extends StatefulWidget {
 
 class _PaginaInicialState extends State<PaginaInicial> {
   final formatadorMoeda = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
+  String _filtroTipo = 'Todas';
+  String _filtroCategoria = 'Todas';
 
   @override
   void initState() {
@@ -43,20 +46,7 @@ class _PaginaInicialState extends State<PaginaInicial> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.primaria.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(Icons.help_center, color: AppColors.primaria, size: 24),
-            ),
-            const SizedBox(width: 12),
-            const Text('💡 Como Usar o App'),
-          ],
-        ),
+        title: const Text('💡 Como Usar o App'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min, 
@@ -245,106 +235,73 @@ class _PaginaInicialState extends State<PaginaInicial> {
     );
   }
 
-  Widget _buildResumoCard(double saldoDinheiro, double saldoCartao, double faturaMes, double cofrinho, double investido) {
-    final valorTotal = saldoDinheiro + saldoCartao;
 
-    return Card(
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Text('Valor Total',
-                style: GoogleFonts.montserrat(
-                    fontSize: 22,
-                    color: AppColors.textoSecundario,
-                    fontWeight: FontWeight.w500)),
-            const SizedBox(height: 4),
-            Text(
-              formatadorMoeda.format(valorTotal),
-              style: GoogleFonts.montserrat(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textoPrincipal),
-            ),
-            const SizedBox(height: 12),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _miniResumoItem(
-                    icon: Icons.attach_money,
-                    label: 'Dinheiro',
-                    valor: saldoDinheiro,
-                    cor: Colors.green),
-                _miniResumoItem(
-                    icon: Icons.credit_card,
-                    label: 'Cartão',
-                    valor: saldoCartao,
-                    cor: Colors.orange),
-                    _miniResumoItem(
-                    icon: Icons.receipt_long,
-                    label: 'Fatura (Mês)',
-                    valor: faturaMes,
-                    cor: Colors.red),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                if (versaoPessoal)
-                  _miniResumoItem(
-                      icon: Icons.savings,
-                      label: 'Cofrinho',
-                      valor: cofrinho,
-                      cor: Colors.blue),
-                if (versaoPessoal)
-                  _miniResumoItem(
-                      icon: Icons.trending_up,
-                      label: 'Investido',
-                      valor: investido,
-                      cor: Colors.purple),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-Widget _miniResumoItem(
-    {required IconData icon,
-    required String label,
-    required double valor,
-    required Color cor}) {
-  return Column(
-    children: [
-      Icon(icon, color: cor, size: 20),
-      const SizedBox(height: 2),
-      Text(label,
-          style: const TextStyle(
-              fontSize: 12, color: AppColors.textoSecundario)),
-      Text(
-        NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$').format(valor),
-        style: TextStyle(
-            fontSize: 18, fontWeight: FontWeight.w600, color: cor),
-      ),
-    ],
-  );
-}
 
   Widget _buildListaHistorico(List<QueryDocumentSnapshot> docs) {
     if (docs.isEmpty) return const Center(child: Text('Nenhuma transação no histórico.'));
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 90.0),
-      itemCount: docs.length,
-      itemBuilder: (ctx, index) {
-        final transacaoDoc = docs[index];
-        final transacaoData = transacaoDoc.data() as Map<String, dynamic>;
+    
+    Set<String> categoriasDisponiveis = {};
+    for (var doc in docs) {
+      categoriasDisponiveis.add((doc.data() as Map<String, dynamic>)['categoria'] as String);
+    }
+    
+    final listaCategorias = categoriasDisponiveis.toList()..sort();
+    listaCategorias.insert(0, 'Todas');
+    
+    if (!listaCategorias.contains(_filtroCategoria)) {
+      _filtroCategoria = 'Todas';
+    }
+
+    List<QueryDocumentSnapshot> filteredDocs = docs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      String tipoCorrigido = _filtroTipo == 'Saída' ? 'Saida' : _filtroTipo;
+      if (_filtroTipo != 'Todas' && data['tipo'] != tipoCorrigido) return false;
+      if (_filtroCategoria != 'Todas' && data['categoria'] != _filtroCategoria) return false;
+      return true;
+    }).toList();
+
+
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(labelText: 'Tipo', contentPadding: EdgeInsets.symmetric(horizontal: 8)),
+                  value: _filtroTipo,
+                  items: ['Todas', 'Entrada', 'Saída'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                  onChanged: (val) {
+                    if (val != null) setState(() => _filtroTipo = val);
+                  },
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(labelText: 'Categoria', contentPadding: EdgeInsets.symmetric(horizontal: 8)),
+                  value: _filtroCategoria,
+                  isExpanded: true,
+                  items: listaCategorias.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                  onChanged: (val) {
+                    if (val != null) setState(() => _filtroCategoria = val);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: filteredDocs.isEmpty 
+              ? const Center(child: Text('Nenhuma transação encontrada.'))
+              : ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 90.0),
+                  itemCount: filteredDocs.length,
+                  itemBuilder: (ctx, index) {
+                    final transacaoDoc = filteredDocs[index];
+                    final transacaoData = transacaoDoc.data() as Map<String, dynamic>;
         final tipo =
             transacaoData['tipo'] == 'Entrada' ? TipoTransacao.Entrada : TipoTransacao.Saida;
         final data = DateTime.parse(transacaoData['data']);
@@ -395,6 +352,9 @@ Widget _miniResumoItem(
           ),
           direction: DismissDirection.endToStart,
           child: ListTile(
+            dense: true,
+            visualDensity: VisualDensity.compact,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
             onTap: () => _abrirModalDeTransacao(context, transacaoDoc),
             leading: CircleAvatar(
               backgroundColor: cor,
@@ -417,8 +377,11 @@ Widget _miniResumoItem(
           ),
         );
       },
-    );
-  }
+    ),
+  ),
+  ],
+);
+}
 
   Widget _buildListaFaturas(List<QueryDocumentSnapshot> docs) {
     if (docs.isEmpty) return const Center(child: Text('Nenhuma fatura futura.'));
@@ -525,7 +488,7 @@ Widget _miniResumoItem(
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Controle de Gastos'),
+        title: const FittedBox(fit: BoxFit.scaleDown, child: Text('Controle de Gastos')),
         actions: [
           IconButton(
             icon: const Icon(Icons.bar_chart),
@@ -563,7 +526,7 @@ Widget _miniResumoItem(
             StreamBuilder<QuerySnapshot>(
               stream: _transacoesRef.snapshots(),
               builder: (ctx, snapshot) {
-                if (!snapshot.hasData) return _buildResumoCard(0, 0, 0, 0, 0);
+                if (!snapshot.hasData) return const ResumoCard(saldoDinheiro: 0, saldoCartao: 0, faturaMes: 0, cofrinho: 0, investido: 0);
                 final docs = snapshot.data?.docs ?? [];
                 
                 double entradasDinheiro = 0, saidasDinheiro = 0;
@@ -608,7 +571,13 @@ Widget _miniResumoItem(
                 final saldoDinheiro = entradasDinheiro - saidasDinheiro;
                 final saldoCartao = entradasCartao - saidasCartaoDebito;
                 
-                return _buildResumoCard(saldoDinheiro, saldoCartao, faturaMesAtual, cofrinho, investido);
+                return ResumoCard(
+                  saldoDinheiro: saldoDinheiro,
+                  saldoCartao: saldoCartao,
+                  faturaMes: faturaMesAtual,
+                  cofrinho: cofrinho,
+                  investido: investido,
+                );
               },
             ),
             const TabBar(tabs: [Tab(text: 'Histórico'), Tab(text: 'Faturas')]),
