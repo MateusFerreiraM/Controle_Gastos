@@ -18,7 +18,7 @@ O app utiliza o **Firebase (Cloud Firestore)** como backend, garantindo que os d
 
 ### 💳 **Gerenciamento de Transações**
 - **CRUD Completo:** Criar, ler, editar e excluir transações
-- **Tipos de Transação:** Entradas (receitas) e Saídas (despesas)
+- **Tipos de Transação:** Entradas (receitas), Saídas (despesas) e Investimentos
 - **Métodos de Pagamento:** Dinheiro, Cartão de Débito, Cartão de Crédito
 - **Sistema de Parcelas:** Compras parceladas no cartão de crédito (1-48x)
 - **Filtros Avançados:** Filtre as transações do feed por Tipo (Entrada/Saída) ou Categoria.
@@ -26,10 +26,11 @@ O app utiliza o **Firebase (Cloud Firestore)** como backend, garantindo que os d
 - **Observações Detalhadas:** Campo livre para anotações importantes
 
 ### 📊 **Análise Financeira Avançada**
-- **Carrossel de Resumo:** Cards dinâmicos e focados no Saldo do Mês e Faturas.
-- **Gráficos com Rolagem Histórica:** Visualize o histórico infinito arrastando os meses de evolução para o lado.
-- **Insights Inteligentes:** Resumo automático mostrando sua taxa de poupança, gasto médio diário e maior despesa.
-- **Separação Inteligente:** Abas separadas para analisar onde você gastou e de onde veio o seu dinheiro.
+- **Dashboard Financeiro (Kardex):** Cartões de resumo contendo Entradas, Saídas, Investimentos e Balanço consolidado.
+- **Seletor de Período Iterativo:** Navegação mês a mês simplificada para acessar o histórico.
+- **Abas Onde Gastei e De Onde Veio:** Listagem interativa com o ranking (Top 10) de categorias das maiores despesas e receitas.
+- **Fluxo de Caixa (6 Meses):** Comparativo visual de barras agrupadas das Entradas vs Saídas ao longo do tempo.
+- **Visão Histórica e Mensal:** Gráficos separados para analisar o mês isolado ou o acumulado de todos os tempos.
 
 ### 🏷️ **Sistema de Categorias**
 - **Categorias Personalizáveis:** Crie e gerencie suas próprias categorias

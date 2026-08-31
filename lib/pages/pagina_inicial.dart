@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../app_config.dart';
 import '../app_colors.dart';
 import '../widgets/formulario_transacao.dart';
+import '../models/transacao_model.dart';
 import 'tela_graficos.dart';
 import 'tela_menu_configuracoes.dart';
 import '../widgets/resumo_card.dart';
@@ -252,12 +253,15 @@ class _PaginaInicialState extends State<PaginaInicial> {
       _filtroCategoria = 'Todas';
     }
 
-    List<QueryDocumentSnapshot> filteredDocs = docs.where((doc) {
-      final data = doc.data() as Map<String, dynamic>;
-      String tipoCorrigido = _filtroTipo == 'Saída' ? 'Saida' : _filtroTipo;
-      if (_filtroTipo != 'Todas' && data['tipo'] != tipoCorrigido) return false;
-      if (_filtroCategoria != 'Todas' && data['categoria'] != _filtroCategoria) return false;
-      return true;
+    final docsFiltrados = docs.where((doc) {
+      final transacao = TransacaoModel.fromDocument(doc);
+      bool passaTipo = true;
+      if (_filtroTipo == 'Entrada') passaTipo = transacao.tipo == TipoTransacao.Entrada;
+      if (_filtroTipo == 'Saída') passaTipo = transacao.tipo == TipoTransacao.Saida;
+      if (_filtroTipo == 'Investido') passaTipo = transacao.tipo == TipoTransacao.Investido;
+      
+      bool passaCategoria = _filtroCategoria == 'Todas' || transacao.categoria == _filtroCategoria;
+      return passaTipo && passaCategoria;
     }).toList();
 
 
@@ -270,9 +274,15 @@ class _PaginaInicialState extends State<PaginaInicial> {
             children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(labelText: 'Tipo', contentPadding: EdgeInsets.symmetric(horizontal: 8)),
+                  decoration: const InputDecoration(
+                    labelText: 'Filtrar por Tipo',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
                   value: _filtroTipo,
-                  items: ['Todas', 'Entrada', 'Saída'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                  items: ['Todas', 'Entrada', 'Saída', 'Investido'].map((tipo) {
+                    return DropdownMenuItem(value: tipo, child: Text(tipo));
+                  }).toList(),
                   onChanged: (val) {
                     if (val != null) setState(() => _filtroTipo = val);
                   },
@@ -281,7 +291,11 @@ class _PaginaInicialState extends State<PaginaInicial> {
               const SizedBox(width: 16),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(labelText: 'Categoria', contentPadding: EdgeInsets.symmetric(horizontal: 8)),
+                  decoration: const InputDecoration(
+                    labelText: 'Categoria', 
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
                   value: _filtroCategoria,
                   isExpanded: true,
                   items: listaCategorias.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
@@ -294,88 +308,124 @@ class _PaginaInicialState extends State<PaginaInicial> {
           ),
         ),
         Expanded(
-          child: filteredDocs.isEmpty 
+          child: docsFiltrados.isEmpty 
               ? const Center(child: Text('Nenhuma transação encontrada.'))
               : ListView.builder(
                   padding: const EdgeInsets.only(bottom: 90.0),
-                  itemCount: filteredDocs.length,
+                  itemCount: docsFiltrados.length,
                   itemBuilder: (ctx, index) {
-                    final transacaoDoc = filteredDocs[index];
-                    final transacaoData = transacaoDoc.data() as Map<String, dynamic>;
-        final tipo =
-            transacaoData['tipo'] == 'Entrada' ? TipoTransacao.Entrada : TipoTransacao.Saida;
-        final data = DateTime.parse(transacaoData['data']);
-        final observacao = transacaoData['observacao'] ?? '';
-        final docId = transacaoDoc.id;
-        final cor = tipo == TipoTransacao.Entrada ? AppColors.entrada : AppColors.saida;
-        final metodo = MetodoPagamento.values.firstWhere((e) => e.name == transacaoData['metodo'],
-            orElse: () => MetodoPagamento.Dinheiro);
-        
-        String metodoFormatado = metodo.nomeFormatado;
-        if (tipo == TipoTransacao.Entrada && metodo == MetodoPagamento.Debito) {
-          metodoFormatado = 'Cartão';
-        }
+                    final doc = docsFiltrados[index];
+                    final transacao = TransacaoModel.fromDocument(doc);
+                
+                IconData icone;
+                Color corIcone;
+                String sinal;
+                
+                if (transacao.tipo == TipoTransacao.Entrada) {
+                  icone = Icons.arrow_upward;
+                  corIcone = AppColors.entrada;
+                  sinal = '+';
+                } else if (transacao.tipo == TipoTransacao.Investido) {
+                  icone = Icons.trending_up;
+                  corIcone = Colors.purple;
+                  sinal = '-';
+                } else {
+                  icone = Icons.arrow_downward;
+                  corIcone = AppColors.saida;
+                  sinal = '-';
+                }
 
-        return Dismissible(
-          key: Key(docId),
-          confirmDismiss: (direction) async {
-            return await showDialog(
-              context: context,
-              builder: (BuildContext context) {
-                return AlertDialog(
-                  title: const Text("Confirmar Exclusão"),
-                  content: const Text("Você tem certeza que deseja apagar esta transação?"),
-                  actions: <Widget>[
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(false),
-                      child: const Text("Cancelar"),
+                final ehDinheiro = transacao.metodo == MetodoPagamento.Dinheiro;
+                final bool mostrarSinalizacaoDebito = (!ehDinheiro && transacao.tipo != TipoTransacao.Investido);
+                
+                return Dismissible(
+                  key: Key(doc.id),
+                  background: Container(
+                    color: AppColors.saida,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    child: const Icon(Icons.delete, color: Colors.white),
+                  ),
+                  direction: DismissDirection.endToStart,
+                  confirmDismiss: (direction) async {
+                    return await showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          title: const Text("Confirmar Exclusão"),
+                          content: const Text("Você tem certeza que deseja apagar esta transação?"),
+                          actions: <Widget>[
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text("Cancelar"),
+                            ),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: AppColors.saida),
+                              onPressed: () => Navigator.of(context).pop(true),
+                              child: const Text("Apagar"),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                  onDismissed: (direction) {
+                    _transacoesRef.doc(doc.id).delete();
+                  },
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                    dense: true,
+                    leading: CircleAvatar(
+                      backgroundColor: corIcone.withOpacity(0.1),
+                      child: Icon(icone, color: corIcone),
                     ),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.saida),
-                      onPressed: () => Navigator.of(context).pop(true),
-                      child: const Text("Apagar"),
+                    title: Text(
+                      transacao.categoria,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                  ],
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (transacao.observacao.isNotEmpty)
+                          Text(transacao.observacao, 
+                               style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                        Text(DateFormat('dd/MM/yyyy').format(transacao.data)),
+                      ],
+                    ),
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '$sinal ${formatadorMoeda.format(transacao.valor)}',
+                          style: TextStyle(
+                            color: corIcone,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (mostrarSinalizacaoDebito)
+                              Icon(
+                                transacao.metodo == MetodoPagamento.Credito ? Icons.credit_card : Icons.credit_score,
+                                size: 14,
+                                color: Colors.grey[600]
+                              ),
+                            if (mostrarSinalizacaoDebito)
+                              const SizedBox(width: 4),
+                            Text(
+                              transacao.metodo.nomeFormatado,
+                              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    onTap: () => _abrirModalDeTransacao(context, doc),
+                  ),
                 );
-              },
-            );
-          },
-          onDismissed: (direction) {
-            _transacoesRef.doc(docId).delete();
-          },
-          background: Container(
-            color: AppColors.saida,
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.only(right: 20.0),
-            margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 4),
-            child: const Icon(Icons.delete, color: Colors.white),
-          ),
-          direction: DismissDirection.endToStart,
-          child: ListTile(
-            dense: true,
-            visualDensity: VisualDensity.compact,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-            onTap: () => _abrirModalDeTransacao(context, transacaoDoc),
-            leading: CircleAvatar(
-              backgroundColor: cor,
-              child: Icon(
-                  tipo == TipoTransacao.Entrada ? Icons.arrow_upward : Icons.arrow_downward,
-                  color: Colors.white),
-            ),
-            title: Text(transacaoData['categoria'], style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (observacao.isNotEmpty) Text(observacao),
-                Text('${DateFormat('dd/MM/y', 'pt_BR').format(data)} • $metodoFormatado'),
-              ],
-            ),
-            trailing: Text(
-              formatadorMoeda.format(transacaoData['valor']),
-              style: TextStyle(fontWeight: FontWeight.bold, color: cor, fontSize: 16),
-            ),
-          ),
-        );
       },
     ),
   ),
@@ -536,36 +586,38 @@ class _PaginaInicialState extends State<PaginaInicial> {
                 final hoje = DateTime.now();
 
                 for (var doc in docs) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  final metodo = MetodoPagamento.values.firstWhere((e) => e.name == data['metodo'], orElse: () => MetodoPagamento.Dinheiro);
-                  final valor = data['valor'] as num;
-                  final categoria = data['categoria'] as String;
-                  final tipo = data['tipo'] == 'Entrada' ? TipoTransacao.Entrada : TipoTransacao.Saida;
-                  final isParcelaFutura = data['eParcelaFutura'] as bool? ?? false;
+                  final transacao = TransacaoModel.fromDocument(doc);
                   
-                  if (tipo == TipoTransacao.Entrada) {
-                    if (categoria != 'Cofrinho') {
-                      if (metodo == MetodoPagamento.Dinheiro) {
-                        entradasDinheiro += valor;
+                  if (transacao.tipo == TipoTransacao.Entrada) {
+                    if (transacao.categoria != 'Cofrinho') {
+                      if (transacao.metodo == MetodoPagamento.Dinheiro) {
+                        entradasDinheiro += transacao.valor;
                       } else {
-                        entradasCartao += valor;
+                        entradasCartao += transacao.valor;
                       }
                     }
-                  } else {
-                    if (metodo == MetodoPagamento.Dinheiro) {
-                      saidasDinheiro += valor;
-                    } else if (metodo == MetodoPagamento.Debito) saidasCartaoDebito += valor;
+                  } else if (transacao.tipo == TipoTransacao.Saida) {
+                    if (transacao.metodo == MetodoPagamento.Dinheiro) {
+                      saidasDinheiro += transacao.valor;
+                    } else if (transacao.metodo == MetodoPagamento.Debito) {
+                      saidasCartaoDebito += transacao.valor;
+                    }
+                  } else if (transacao.tipo == TipoTransacao.Investido) {
+                    investido += transacao.valor;
+                    if (transacao.metodo == MetodoPagamento.Dinheiro) {
+                      saidasDinheiro += transacao.valor; // Saiu da conta corrente
+                    } else if (transacao.metodo == MetodoPagamento.Debito) {
+                      saidasCartaoDebito += transacao.valor;
+                    }
                   }
 
-                  if (isParcelaFutura) {
-                    final dataParcela = DateTime.parse(data['data']);
-                    if (dataParcela.month == hoje.month && dataParcela.year == hoje.year) {
-                      faturaMesAtual += valor;
+                  if (transacao.eParcelaFutura) {
+                    if (transacao.data.month == hoje.month && transacao.data.year == hoje.year) {
+                      faturaMesAtual += transacao.valor;
                     }
                   }
                   
-                  if (categoria == 'Cofrinho') cofrinho += valor;
-                  if (categoria == 'Investido') investido += valor;
+                  if (transacao.categoria == 'Cofrinho') cofrinho += transacao.valor;
                 }
                 
                 final saldoDinheiro = entradasDinheiro - saidasDinheiro;

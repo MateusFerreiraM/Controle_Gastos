@@ -25,6 +25,7 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
   DateTime _dataSelecionada = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
   List<String> _categoriasEntrada = [];
   List<String> _categoriasSaida = [];
+  final List<String> _categoriasInvestido = ['Ações', 'Tesouro Direto', 'Renda Fixa', 'CDB', 'Cripto', 'Outros'];
   bool _carregandoCategorias = true;
 
   @override
@@ -35,9 +36,16 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
       final dados = widget.transacaoParaEditar!.data() as Map<String, dynamic>;
       _valorController.text = dados['valor'].toString();
       _obsController.text = dados['observacao'] ?? '';
-      _tipoSelecionado = dados['tipo'] == 'Entrada' ? TipoTransacao.Entrada : TipoTransacao.Saida;
+      if (dados['tipo'] == 'Entrada') {
+        _tipoSelecionado = TipoTransacao.Entrada;
+      } else if (dados['tipo'] == 'Investido' || (dados['tipo'] == 'Saida' && dados['categoria'] == 'Investido')) {
+        _tipoSelecionado = TipoTransacao.Investido;
+      } else {
+        _tipoSelecionado = TipoTransacao.Saida;
+      }
+      
       _metodoSelecionado = MetodoPagamento.values.firstWhere((e) => e.name == dados['metodo'], orElse: () => MetodoPagamento.Dinheiro);
-      _categoriaSelecionada = dados['categoria'];
+      _categoriaSelecionada = (dados['tipo'] == 'Saida' && dados['categoria'] == 'Investido') ? 'Outros' : dados['categoria'];
       _dataSelecionada = DateTime.parse(dados['data']);
       _parcelasController.text = (dados['parcelas'] ?? 1).toString();
     }
@@ -76,7 +84,7 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
     }
     
     // Validação da categoria
-    if (_categoriaSelecionada == null || _categoriaSelecionada!.isEmpty) {
+    if (_tipoSelecionado != TipoTransacao.Investido && (_categoriaSelecionada == null || _categoriaSelecionada!.isEmpty)) {
       erros.add('• Selecione uma categoria');
     }
     
@@ -111,10 +119,10 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
       id: widget.transacaoParaEditar?.id, 
       valor: valor, 
       tipo: _tipoSelecionado, 
-      categoria: _categoriaSelecionada!, 
+      categoria: _tipoSelecionado == TipoTransacao.Investido ? 'Investimentos' : _categoriaSelecionada!, 
       data: _dataSelecionada, 
       observacao: observacao, 
-      metodo: _metodoSelecionado, 
+      metodo: _tipoSelecionado == TipoTransacao.Investido ? MetodoPagamento.Debito : _metodoSelecionado, 
       parcelas: parcelasFinais
     );
     
@@ -220,7 +228,7 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildItemAjuda('📊 Tipo:', 'Escolha "Entrada" para dinheiro recebido (salário, vendas) ou "Saída" para gastos'),
+              _buildItemAjuda('📊 Tipo:', 'Escolha "Entrada" para dinheiro recebido, "Saída" para gastos ou "Investido" para aplicações.'),
               const SizedBox(height: 12),
               _buildItemAjuda('💳 Método:', '''• Cartão de crédito permite parcelamento
 • Débito é pagamento à vista
@@ -292,7 +300,14 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
 
   @override
   Widget build(BuildContext context) {
-    var categoriasAtuais = _tipoSelecionado == TipoTransacao.Entrada ? _categoriasEntrada : _categoriasSaida;
+    List<String> categoriasAtuais;
+    if (_tipoSelecionado == TipoTransacao.Entrada) {
+      categoriasAtuais = _categoriasEntrada;
+    } else if (_tipoSelecionado == TipoTransacao.Investido) {
+      categoriasAtuais = _categoriasInvestido;
+    } else {
+      categoriasAtuais = _categoriasSaida;
+    }
 
     if (widget.transacaoParaEditar != null && 
         _categoriaSelecionada == 'Fatura' && 
@@ -335,8 +350,9 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
           const SizedBox(height: 16),
           SegmentedButton<TipoTransacao>(
             segments: const <ButtonSegment<TipoTransacao>>[
-              ButtonSegment<TipoTransacao>(value: TipoTransacao.Saida, label: Text('Saída'), icon: Icon(Icons.arrow_downward)),
-              ButtonSegment<TipoTransacao>(value: TipoTransacao.Entrada, label: Text('Entrada'), icon: Icon(Icons.arrow_upward)),
+              ButtonSegment<TipoTransacao>(value: TipoTransacao.Saida, label: Text('Saída', style: TextStyle(fontSize: 12)), icon: Icon(Icons.arrow_downward)),
+              ButtonSegment<TipoTransacao>(value: TipoTransacao.Entrada, label: Text('Entrada', style: TextStyle(fontSize: 12)), icon: Icon(Icons.arrow_upward)),
+              ButtonSegment<TipoTransacao>(value: TipoTransacao.Investido, label: Text('Investido', style: TextStyle(fontSize: 12)), icon: Icon(Icons.trending_up)),
             ],
             selected: {_tipoSelecionado},
             onSelectionChanged: (Set<TipoTransacao> newSelection) {
@@ -349,10 +365,13 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
             style: SegmentedButton.styleFrom(
               foregroundColor: AppColors.textoSecundario,
               selectedForegroundColor: Colors.white,
-              selectedBackgroundColor: _tipoSelecionado == TipoTransacao.Entrada ? AppColors.entrada : AppColors.saida,
+              selectedBackgroundColor: _tipoSelecionado == TipoTransacao.Entrada 
+                ? AppColors.entrada 
+                : (_tipoSelecionado == TipoTransacao.Investido ? Colors.purple : AppColors.saida),
             ),
           ),
           const SizedBox(height: 16),
+          if (_tipoSelecionado != TipoTransacao.Investido) ...[
           DropdownButtonFormField<MetodoPagamento>(
             initialValue: _metodoSelecionado,
             decoration: const InputDecoration(labelText: 'Método de Pagamento', border: OutlineInputBorder()),
@@ -371,6 +390,7 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
             },
           ),
           const SizedBox(height: 16),
+          ],
           Row(children: [
             Expanded(child: Text('Data: ${DateFormat('dd/MM/y', 'pt_BR').format(_dataSelecionada)}')),
             TextButton(onPressed: _abrirSeletorDeData, child: const Text('Alterar', style: TextStyle(fontWeight: FontWeight.bold)))
@@ -385,7 +405,8 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
             ),
             const SizedBox(height: 16),
           ],
-          DropdownButtonFormField<String>(
+          if (_tipoSelecionado != TipoTransacao.Investido) ...[
+            DropdownButtonFormField<String>(
             initialValue: _categoriaSelecionada,
             hint: const Text('Selecione uma Categoria'),
             decoration: const InputDecoration(border: OutlineInputBorder()),
@@ -393,6 +414,7 @@ class _FormularioTransacaoState extends State<FormularioTransacao> {
             onChanged: (String? novoValor) { setState(() => _categoriaSelecionada = novoValor); },
           ),
           const SizedBox(height: 16),
+          ],
           TextField(controller: _obsController, decoration: const InputDecoration(labelText: 'Observação (opcional)')),
           const SizedBox(height: 20),
           ElevatedButton(onPressed: _submeterFormulario, child: const Text('Salvar Alterações')),

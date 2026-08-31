@@ -1,6 +1,6 @@
 const bool versaoPessoal = false;
 
-enum TipoTransacao { Entrada, Saida }
+enum TipoTransacao { Entrada, Saida, Investido }
 
 enum MetodoPagamento { Dinheiro, Debito, Credito }
 

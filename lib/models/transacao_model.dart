@@ -27,12 +27,40 @@ class TransacaoModel {
 
   factory TransacaoModel.fromDocument(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    
+    // Tratamento de compatibilidade para antigos investimentos que eram "Saída"
+    final tipoRaw = data['tipo'];
+    final categoriaRaw = data['categoria'] ?? '';
+    
+    TipoTransacao tipo;
+    if (tipoRaw == 'Investido' || (tipoRaw == 'Saida' && categoriaRaw == 'Investido')) {
+      tipo = TipoTransacao.Investido;
+    } else if (tipoRaw == 'Entrada') {
+      tipo = TipoTransacao.Entrada;
+    } else {
+      tipo = TipoTransacao.Saida;
+    }
+    
+    // Parser seguro de data garantindo meia-noite local
+    DateTime dataParse;
+    try {
+      final dateString = data['data']?.toString() ?? '';
+      if (dateString.length >= 10) {
+        final parts = dateString.substring(0, 10).split('-');
+        dataParse = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+      } else {
+        dataParse = DateTime.now();
+      }
+    } catch (e) {
+      dataParse = DateTime.now();
+    }
+
     return TransacaoModel(
       id: doc.id,
       valor: (data['valor'] as num).toDouble(),
-      tipo: data['tipo'] == 'Entrada' ? TipoTransacao.Entrada : TipoTransacao.Saida,
-      categoria: data['categoria'] ?? '',
-      data: DateTime.tryParse(data['data']?.toString() ?? '') ?? DateTime.now(),
+      tipo: tipo,
+      categoria: categoriaRaw,
+      data: dataParse,
       observacao: data['observacao'] ?? '',
       metodo: MetodoPagamento.values.firstWhere(
         (e) => e.name == data['metodo'],
